@@ -39,7 +39,7 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       -webkit-tap-highlight-color: transparent;
     }
-    button, input, textarea { font: inherit; }
+    button, input, select, textarea { font: inherit; }
     button { touch-action: manipulation; }
     .app { width: 100%; min-height: 100dvh; }
     .topbar {
@@ -129,22 +129,31 @@
       padding: 4px 7px;
       border-left: 1px solid var(--line);
     }
+    .appointments-layer {
+      position: absolute;
+      z-index: 6;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: var(--time-width);
+      pointer-events: none;
+    }
     .appointment {
-      position: relative;
-      z-index: 2;
-      width: 100%;
-      min-height: 35px;
+      position: absolute;
+      min-height: 38px;
       padding: 7px 9px;
       overflow: hidden;
-      border: 1px solid #cfddd3;
+      border: 1px solid #c7d8cc;
       border-left: 4px solid var(--accent);
       border-radius: 9px;
       color: var(--text);
-      background: var(--accent-soft);
+      background: rgba(233, 240, 235, .96);
+      box-shadow: 0 2px 7px rgba(65, 92, 76, .10);
       text-align: left;
       cursor: pointer;
+      pointer-events: auto;
     }
-    .appointment + .appointment { margin-top: 4px; }
+    .appointment:active { filter: brightness(.98); }
     .appt-title { display: block; overflow: hidden; font-weight: 730; font-size: 14px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
     .appt-meta { display: block; margin-top: 2px; color: var(--accent-deep); font-size: 11px; line-height: 1.2; }
     .empty-hint { padding: 22px 16px; color: var(--muted); text-align: center; font-size: 13px; }
@@ -165,7 +174,7 @@
     .dialog-title { margin: 0 0 14px; font-size: 19px; line-height: 1.2; }
     .field { display: block; margin: 0 0 12px; }
     .field-label { display: block; margin: 0 0 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
-    input, textarea {
+    input, select, textarea {
       width: 100%;
       min-height: 44px;
       padding: 10px 11px;
@@ -176,7 +185,7 @@
       background: #fff;
       font-size: 16px;
     }
-    input:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99, 123, 109, .13); }
+    input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99, 123, 109, .13); }
     textarea { min-height: 82px; resize: vertical; }
     .time-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .error { min-height: 18px; margin: -3px 0 7px; color: var(--danger); font-size: 12px; }
@@ -232,11 +241,11 @@
       <div class="time-fields">
         <label class="field">
           <span class="field-label">Start time</span>
-          <input id="startInput" type="time" step="900" required>
+          <select id="startInput" required aria-label="Start time"></select>
         </label>
         <label class="field">
           <span class="field-label">End time</span>
-          <input id="endInput" type="time" step="900" required>
+          <select id="endInput" required aria-label="End time"></select>
         </label>
       </div>
       <label class="field">
@@ -270,7 +279,7 @@
 
   <script>
     'use strict';
-    const APP_VERSION = "V1.00";
+    const APP_VERSION = "V1.10";
     const APP_BUILD_DATE = "2026-09-16";
     const STORAGE_KEY = "diary.appointments.v1";
 
@@ -363,10 +372,26 @@
       span.textContent = value;
       return span.innerHTML;
     }
-    function appointmentsAt(time) {
-      return appointments
-        .filter(item => item.date === selectedDate && item.startTime === time)
-        .sort((a, b) => a.endTime.localeCompare(b.endTime) || a.title.localeCompare(b.title));
+    function layoutDayAppointments(items) {
+      const sorted = items.slice().sort((a, b) => a.startTime.localeCompare(b.startTime) || a.endTime.localeCompare(b.endTime));
+      const active = [];
+      const laidOut = [];
+      sorted.forEach(item => {
+        const start = timeToMinutes(item.startTime);
+        const end = timeToMinutes(item.endTime);
+        for (let index = active.length - 1; index >= 0; index -= 1) {
+          if (active[index].end <= start) active.splice(index, 1);
+        }
+        const used = new Set(active.map(entry => entry.lane));
+        let lane = 0;
+        while (used.has(lane)) lane += 1;
+        const entry = { item, start, end, lane, laneCount: 1 };
+        active.push(entry);
+        const groupLaneCount = Math.max(...active.map(current => current.lane)) + 1;
+        active.forEach(current => { current.laneCount = Math.max(current.laneCount, groupLaneCount); });
+        laidOut.push(entry);
+      });
+      return laidOut;
     }
     function render() {
       formatSelectedDate();
@@ -384,18 +409,29 @@
         timeLabel.textContent = time;
         const body = document.createElement('div');
         body.className = 'slot-body';
-        appointmentsAt(time).forEach(item => {
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.className = 'appointment';
-          button.dataset.id = item.id;
-          button.setAttribute('aria-label', `Edit ${item.title}, ${item.startTime} to ${item.endTime}`);
-          button.innerHTML = `<span class="appt-title">${escapeText(item.title)}</span><span class="appt-meta">${escapeText(item.startTime)}–${escapeText(item.endTime)}</span>`;
-          body.appendChild(button);
-        });
         row.append(timeLabel, body);
         fragment.appendChild(row);
       }
+      const layer = document.createElement('div');
+      layer.className = 'appointments-layer';
+      const dayItems = appointments.filter(item => item.date === selectedDate);
+      layoutDayAppointments(dayItems).forEach(({ item, start, end, lane, laneCount }) => {
+        const button = document.createElement('button');
+        const top = (start / 15) * 44 + 3;
+        const height = Math.max(38, ((end - start) / 15) * 44 - 6);
+        const width = 100 / laneCount;
+        button.type = 'button';
+        button.className = 'appointment';
+        button.dataset.id = item.id;
+        button.style.top = `${top}px`;
+        button.style.height = `${height}px`;
+        button.style.left = `calc(${lane * width}% + 7px)`;
+        button.style.width = `calc(${width}% - 11px)`;
+        button.setAttribute('aria-label', `Edit ${item.title}, ${item.startTime} to ${item.endTime}`);
+        button.innerHTML = `<span class="appt-title">${escapeText(item.title)}</span><span class="appt-meta">${escapeText(item.startTime)}–${escapeText(item.endTime)}</span>`;
+        layer.appendChild(button);
+      });
+      fragment.appendChild(layer);
       elements.timeline.replaceChildren(fragment);
     }
     function setSelectedDate(iso, scrollToUsefulTime = false) {
@@ -429,7 +465,7 @@
         elements.appointmentDialogTitle.textContent = 'Add appointment';
         elements.appointmentId.value = '';
         elements.startInput.value = slotTime;
-        elements.endInput.value = minutesToTime(Math.min(timeToMinutes(slotTime) + 30, 23 * 60 + 45));
+        elements.endInput.value = timeToMinutes(slotTime) + 30 >= 24 * 60 ? '24:00' : minutesToTime(timeToMinutes(slotTime) + 30);
         elements.deleteButton.hidden = true;
       }
       elements.appointmentDialog.showModal();
@@ -445,6 +481,25 @@
       return '';
     }
     function closeDialog(dialog) { if (dialog.open) dialog.close(); }
+    function populateTimeSelects() {
+      const startFragment = document.createDocumentFragment();
+      const endFragment = document.createDocumentFragment();
+      for (let total = 0; total < 24 * 60; total += 15) {
+        const time = minutesToTime(total);
+        const startOption = document.createElement('option');
+        startOption.value = time;
+        startOption.textContent = time;
+        startFragment.appendChild(startOption);
+        const endOption = startOption.cloneNode(true);
+        endFragment.appendChild(endOption);
+      }
+      const midnightEnd = document.createElement('option');
+      midnightEnd.value = '24:00';
+      midnightEnd.textContent = '24:00';
+      endFragment.appendChild(midnightEnd);
+      elements.startInput.appendChild(startFragment);
+      elements.endInput.appendChild(endFragment);
+    }
 
     elements.timeline.addEventListener('click', event => {
       const appointmentButton = event.target.closest('.appointment');
@@ -500,6 +555,12 @@
       closeDialog(elements.appointmentDialog);
       render();
     });
+    elements.startInput.addEventListener('change', () => {
+      const suggestedEnd = timeToMinutes(elements.startInput.value) + 30;
+      if (!elements.endInput.value || timeToMinutes(elements.endInput.value) <= timeToMinutes(elements.startInput.value)) {
+        elements.endInput.value = suggestedEnd >= 24 * 60 ? '24:00' : minutesToTime(suggestedEnd);
+      }
+    });
     elements.cancelButton.addEventListener('click', () => closeDialog(elements.appointmentDialog));
     elements.appointmentDialog.addEventListener('click', event => { if (event.target === elements.appointmentDialog) closeDialog(elements.appointmentDialog); });
     elements.previousDay.addEventListener('click', () => setSelectedDate(shiftDate(selectedDate, -1), true));
@@ -515,6 +576,7 @@
     elements.closeAboutButton.addEventListener('click', () => closeDialog(elements.aboutDialog));
     elements.aboutDialog.addEventListener('click', event => { if (event.target === elements.aboutDialog) closeDialog(elements.aboutDialog); });
 
+    populateTimeSelects();
     elements.versionText.textContent = APP_VERSION;
     elements.buildDateText.textContent = APP_BUILD_DATE;
     render();
