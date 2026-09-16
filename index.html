@@ -345,16 +345,25 @@
       .appt-title { display: inline; font-size: 11px; line-height: 1.05; }
       .appt-meta { display: none; }
     }
-    @media (min-width: 1320px) {
-      .content-shell { max-width: none; }
-      .content-shell main { width: min(760px, 100%); margin-left: auto; margin-right: auto; }
+    @media (min-width: 900px) {
+      .content-shell {
+        --desktop-calendar-width: 260px;
+        --desktop-calendar-gap: 12px;
+        max-width: none;
+      }
+      .content-shell main {
+        width: min(760px, calc(100vw - 572px));
+        max-width: none;
+        margin-left: auto;
+        margin-right: auto;
+      }
       .desktop-calendar {
         position: fixed;
         z-index: 10;
         top: 102px;
         right: 14px;
         display: block;
-        width: 260px;
+        width: var(--desktop-calendar-width);
         height: calc(100dvh - 107px);
         overflow: auto;
         border: 1px solid var(--line);
@@ -362,7 +371,7 @@
         background: var(--surface-strong);
       }
       .calendar-open-btn { display: none; }
-      .calendar-weekdays, .calendar-week { grid-template-columns: 67px repeat(7, minmax(25px, 1fr)); }
+      .calendar-weekdays, .calendar-week { grid-template-columns: 67px repeat(7, minmax(21px, 1fr)); }
       .calendar-week { min-height: 33px; }
       .calendar-day { font-size: 11px; }
     }
