@@ -268,9 +268,13 @@
       <div class="about-copy">
         <p><strong>A simple local-first appointment diary.</strong></p>
         <p>Tap any 15-minute slot to add an appointment. Tap an appointment to edit or delete it. Your data stays in this browser on this device.</p>
+        <p id="storageStatus" class="version">Automatic backup is active.</p>
         <p class="version"><strong id="versionText"></strong><br>Build date: <span id="buildDateText"></span></p>
       </div>
-      <div class="dialog-actions">
+      <div class="dialog-actions" style="flex-wrap:wrap">
+        <button id="exportButton" class="small-btn" type="button">Export data</button>
+        <button id="importButton" class="small-btn secondary" type="button">Import data</button>
+        <input id="importFile" class="sr-only" type="file" accept="application/json,.json">
         <span class="spacer"></span>
         <button id="closeAboutButton" class="primary-btn" type="button">Close</button>
       </div>
@@ -279,9 +283,11 @@
 
   <script>
     'use strict';
-    const APP_VERSION = "V1.10";
+    const APP_VERSION = "V1.20";
     const APP_BUILD_DATE = "2026-09-16";
     const STORAGE_KEY = "diary.appointments.v1";
+    const BACKUP_KEY = "diary.appointments.backup.v1";
+    const BACKUP_META_KEY = "diary.appointments.backup.meta.v1";
 
     const elements = {
       timeline: document.getElementById('timeline'),
@@ -307,7 +313,11 @@
       aboutDialog: document.getElementById('aboutDialog'),
       closeAboutButton: document.getElementById('closeAboutButton'),
       versionText: document.getElementById('versionText'),
-      buildDateText: document.getElementById('buildDateText')
+      buildDateText: document.getElementById('buildDateText'),
+      storageStatus: document.getElementById('storageStatus'),
+      exportButton: document.getElementById('exportButton'),
+      importButton: document.getElementById('importButton'),
+      importFile: document.getElementById('importFile')
     };
 
     let selectedDate = todayISO();
@@ -341,23 +351,86 @@
         typeof item.title === 'string' && /^\d{2}:\d{2}$/.test(item.startTime) &&
         /^\d{2}:\d{2}$/.test(item.endTime) && typeof item.notes === 'string';
     }
-    function loadAppointments() {
+    function parseStoredAppointments(raw) {
+      if (typeof raw !== 'string' || raw === '') return null;
       try {
-        const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-        return Array.isArray(value) ? value.filter(isValidAppointment) : [];
+        const value = JSON.parse(raw);
+        if (!Array.isArray(value) || !value.every(isValidAppointment)) return null;
+        return value;
       } catch (error) {
-        console.warn('Diary storage could not be read.', error);
-        return [];
+        return null;
       }
     }
+    function writeVerified(key, value) {
+      localStorage.setItem(key, value);
+      if (localStorage.getItem(key) !== value) throw new Error(`Storage verification failed for ${key}`);
+    }
+    function updateStorageStatus(message) {
+      if (elements.storageStatus) elements.storageStatus.textContent = message;
+    }
+    function loadAppointments() {
+      const mainRaw = localStorage.getItem(STORAGE_KEY);
+      const main = parseStoredAppointments(mainRaw);
+      if (main) return main;
+      const backupRaw = localStorage.getItem(BACKUP_KEY);
+      const backup = parseStoredAppointments(backupRaw);
+      if (backup) {
+        try {
+          writeVerified(STORAGE_KEY, JSON.stringify(backup));
+          sessionStorage.setItem('diary.recovery.notice', '1');
+        } catch (error) {
+          console.warn('Diary recovered the backup in memory but could not repair primary storage.', error);
+        }
+        return backup;
+      }
+      if (mainRaw !== null || backupRaw !== null) console.warn('Diary storage was invalid and no valid backup was available.');
+      return [];
+    }
     function saveAppointments() {
+      const payload = JSON.stringify(appointments);
+      const metadata = JSON.stringify({ savedAt: new Date().toISOString(), count: appointments.length, version: APP_VERSION });
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(appointments));
+        writeVerified(BACKUP_KEY, payload);
+        writeVerified(BACKUP_META_KEY, metadata);
+        writeVerified(STORAGE_KEY, payload);
+        updateStorageStatus(`Automatic backup active · ${appointments.length} appointment${appointments.length === 1 ? '' : 's'}`);
         return true;
       } catch (error) {
-        console.error('Diary storage could not be saved.', error);
+        console.error('Diary storage could not be saved safely.', error);
         return false;
       }
+    }
+    function exportData() {
+      const exportObject = {
+        app: 'Diary',
+        schemaVersion: 1,
+        appVersion: APP_VERSION,
+        exportedAt: new Date().toISOString(),
+        appointments: appointments.slice().sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
+      };
+      const blob = new Blob([JSON.stringify(exportObject, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `diary-backup-${todayISO()}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    async function importData(file) {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const imported = Array.isArray(data) ? data : data && data.appointments;
+      if (!Array.isArray(imported) || !imported.every(isValidAppointment)) throw new Error('This is not a valid Diary backup file.');
+      const previous = appointments.slice();
+      appointments = imported.map(item => ({ ...item }));
+      if (!saveAppointments()) {
+        appointments = previous;
+        throw new Error('The imported data could not be saved safely.');
+      }
+      render();
+      updateStorageStatus(`Import complete · ${appointments.length} appointment${appointments.length === 1 ? '' : 's'} restored`);
     }
     function formatSelectedDate() {
       const date = parseLocalDate(selectedDate);
@@ -575,10 +648,30 @@
     elements.aboutButton.addEventListener('click', () => elements.aboutDialog.showModal());
     elements.closeAboutButton.addEventListener('click', () => closeDialog(elements.aboutDialog));
     elements.aboutDialog.addEventListener('click', event => { if (event.target === elements.aboutDialog) closeDialog(elements.aboutDialog); });
+    elements.exportButton.addEventListener('click', exportData);
+    elements.importButton.addEventListener('click', () => elements.importFile.click());
+    elements.importFile.addEventListener('change', async () => {
+      const file = elements.importFile.files && elements.importFile.files[0];
+      elements.importFile.value = '';
+      if (!file) return;
+      if (!confirm('Importing will replace all current Diary appointments. Continue?')) return;
+      try {
+        await importData(file);
+        alert('Diary data imported successfully.');
+      } catch (error) {
+        alert(error.message || 'The Diary backup could not be imported.');
+      }
+    });
 
     populateTimeSelects();
     elements.versionText.textContent = APP_VERSION;
     elements.buildDateText.textContent = APP_BUILD_DATE;
+    const backupMeta = (() => { try { return JSON.parse(localStorage.getItem(BACKUP_META_KEY) || 'null'); } catch (error) { return null; } })();
+    updateStorageStatus(backupMeta && backupMeta.savedAt ? `Automatic backup active · Last saved ${new Date(backupMeta.savedAt).toLocaleString()}` : 'Automatic backup is active.');
+    if (sessionStorage.getItem('diary.recovery.notice') === '1') {
+      sessionStorage.removeItem('diary.recovery.notice');
+      setTimeout(() => alert('Diary recovered your appointments from the automatic backup because the primary copy was unavailable or invalid.'), 0);
+    }
     render();
     requestAnimationFrame(scrollToDayStart);
   </script>
