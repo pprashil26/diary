@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f3ee">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>Diary</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f3ee;
+      --surface: #fffdfa;
+      --surface-strong: #ffffff;
+      --text: #292824;
+      --muted: #77736b;
+      --line: #e8e2d9;
+      --line-strong: #d9d1c6;
+      --accent: #637b6d;
+      --accent-deep: #415c4c;
+      --accent-soft: #e9f0eb;
+      --danger: #a64b48;
+      --danger-soft: #faecea;
+      --shadow: 0 12px 36px rgba(48, 43, 35, .13);
+      --radius: 14px;
+      --time-width: 58px;
+      --header-height: 106px;
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; background: var(--bg); }
+    body {
+      margin: 0;
+      min-width: 280px;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      color: var(--text);
+      background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button, input, textarea { font: inherit; }
+    button { touch-action: manipulation; }
+    .app { width: 100%; min-height: 100dvh; }
+    .topbar {
+      position: sticky;
+      z-index: 20;
+      top: 0;
+      padding: calc(7px + env(safe-area-inset-top)) 10px 8px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(246, 243, 238, .96);
+      backdrop-filter: blur(12px);
+    }
+    .day-nav {
+      display: grid;
+      grid-template-columns: 44px 1fr 44px;
+      gap: 7px;
+      align-items: center;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+    .icon-btn, .date-btn, .small-btn, .primary-btn, .danger-btn, .text-btn {
+      border: 0;
+      cursor: pointer;
+      border-radius: 12px;
+    }
+    .icon-btn {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      color: var(--accent-deep);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      font-size: 25px;
+      line-height: 1;
+    }
+    .icon-btn:active, .small-btn:active, .date-btn:active { transform: translateY(1px); }
+    .date-btn {
+      min-width: 0;
+      height: 44px;
+      padding: 4px 10px;
+      color: var(--text);
+      background: transparent;
+    }
+    .date-main { display: block; font-weight: 730; line-height: 1.2; font-size: 16px; }
+    .date-sub { display: block; margin-top: 2px; color: var(--muted); line-height: 1.1; font-size: 12px; }
+    .toolbar {
+      display: flex;
+      justify-content: center;
+      gap: 7px;
+      max-width: 760px;
+      margin: 6px auto 0;
+    }
+    .small-btn {
+      min-height: 34px;
+      padding: 6px 14px;
+      color: var(--accent-deep);
+      background: var(--accent-soft);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .small-btn.secondary { color: var(--muted); background: transparent; border: 1px solid var(--line); }
+    main { max-width: 760px; margin: 0 auto; padding-bottom: calc(22px + env(safe-area-inset-bottom)); }
+    .timeline { position: relative; background: var(--surface); }
+    .slot {
+      position: relative;
+      display: grid;
+      grid-template-columns: var(--time-width) minmax(0, 1fr);
+      min-height: 44px;
+      border-bottom: 1px solid var(--line);
+      cursor: pointer;
+    }
+    .slot.hour { border-bottom-color: var(--line-strong); }
+    .slot:active .slot-body { background: #faf8f4; }
+    .time {
+      padding: 8px 7px 0 0;
+      color: var(--muted);
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-size: 11px;
+      line-height: 1;
+      user-select: none;
+    }
+    .slot.hour .time { color: var(--text); font-weight: 720; }
+    .slot-body {
+      position: relative;
+      min-width: 0;
+      padding: 4px 7px;
+      border-left: 1px solid var(--line);
+    }
+    .appointment {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      min-height: 35px;
+      padding: 7px 9px;
+      overflow: hidden;
+      border: 1px solid #cfddd3;
+      border-left: 4px solid var(--accent);
+      border-radius: 9px;
+      color: var(--text);
+      background: var(--accent-soft);
+      text-align: left;
+      cursor: pointer;
+    }
+    .appointment + .appointment { margin-top: 4px; }
+    .appt-title { display: block; overflow: hidden; font-weight: 730; font-size: 14px; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+    .appt-meta { display: block; margin-top: 2px; color: var(--accent-deep); font-size: 11px; line-height: 1.2; }
+    .empty-hint { padding: 22px 16px; color: var(--muted); text-align: center; font-size: 13px; }
+    dialog {
+      width: min(calc(100% - 22px), 440px);
+      max-height: calc(100dvh - 22px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+      margin: auto;
+      padding: 0;
+      overflow: auto;
+      border: 0;
+      border-radius: 18px;
+      color: var(--text);
+      background: var(--surface-strong);
+      box-shadow: var(--shadow);
+    }
+    dialog::backdrop { background: rgba(36, 33, 28, .42); backdrop-filter: blur(2px); }
+    .dialog-inner { padding: 17px; }
+    .dialog-title { margin: 0 0 14px; font-size: 19px; line-height: 1.2; }
+    .field { display: block; margin: 0 0 12px; }
+    .field-label { display: block; margin: 0 0 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
+    input, textarea {
+      width: 100%;
+      min-height: 44px;
+      padding: 10px 11px;
+      border: 1px solid var(--line-strong);
+      border-radius: 11px;
+      outline: 0;
+      color: var(--text);
+      background: #fff;
+      font-size: 16px;
+    }
+    input:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99, 123, 109, .13); }
+    textarea { min-height: 82px; resize: vertical; }
+    .time-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .error { min-height: 18px; margin: -3px 0 7px; color: var(--danger); font-size: 12px; }
+    .dialog-actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+    .dialog-actions .spacer { flex: 1; }
+    .primary-btn, .danger-btn, .text-btn { min-height: 42px; padding: 9px 14px; font-weight: 720; }
+    .primary-btn { color: #fff; background: var(--accent-deep); }
+    .danger-btn { color: var(--danger); background: var(--danger-soft); }
+    .text-btn { color: var(--muted); background: transparent; }
+    .about-copy { color: var(--muted); font-size: 14px; line-height: 1.55; }
+    .about-copy strong { color: var(--text); }
+    .version { padding: 10px 11px; border-radius: 11px; background: var(--accent-soft); color: var(--accent-deep); font-size: 13px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    @media (min-width: 761px) {
+      body { padding-left: 14px; padding-right: 14px; }
+      .topbar { border: 1px solid var(--line); border-top: 0; border-radius: 0 0 15px 15px; }
+      main { margin-top: 10px; border: 1px solid var(--line); border-radius: 15px; overflow: hidden; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="day-nav">
+        <button id="previousDay" class="icon-btn" type="button" aria-label="Previous day">‹</button>
+        <button id="dateButton" class="date-btn" type="button" aria-label="Choose date">
+          <span id="dateMain" class="date-main"></span>
+          <span id="dateSub" class="date-sub"></span>
+        </button>
+        <button id="nextDay" class="icon-btn" type="button" aria-label="Next day">›</button>
+      </div>
+      <div class="toolbar">
+        <button id="todayButton" class="small-btn" type="button">Today</button>
+        <button id="aboutButton" class="small-btn secondary" type="button">Help / About</button>
+      </div>
+      <input id="datePicker" class="sr-only" type="date" tabindex="-1" aria-hidden="true">
+    </header>
+
+    <main>
+      <section id="timeline" class="timeline" aria-label="Daily appointments"></section>
+    </main>
+  </div>
+
+  <dialog id="appointmentDialog" aria-labelledby="appointmentDialogTitle">
+    <form id="appointmentForm" class="dialog-inner" novalidate>
+      <h2 id="appointmentDialogTitle" class="dialog-title">Add appointment</h2>
+      <input id="appointmentId" type="hidden">
+      <label class="field">
+        <span class="field-label">Title</span>
+        <input id="titleInput" type="text" maxlength="120" autocomplete="off" required>
+      </label>
+      <div class="time-fields">
+        <label class="field">
+          <span class="field-label">Start time</span>
+          <input id="startInput" type="time" step="900" required>
+        </label>
+        <label class="field">
+          <span class="field-label">End time</span>
+          <input id="endInput" type="time" step="900" required>
+        </label>
+      </div>
+      <label class="field">
+        <span class="field-label">Notes (optional)</span>
+        <textarea id="notesInput" maxlength="1000"></textarea>
+      </label>
+      <div id="formError" class="error" role="alert"></div>
+      <div class="dialog-actions">
+        <button id="deleteButton" class="danger-btn" type="button">Delete</button>
+        <span class="spacer"></span>
+        <button id="cancelButton" class="text-btn" type="button">Cancel</button>
+        <button class="primary-btn" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="aboutDialog" aria-labelledby="aboutDialogTitle">
+    <div class="dialog-inner">
+      <h2 id="aboutDialogTitle" class="dialog-title">Diary</h2>
+      <div class="about-copy">
+        <p><strong>A simple local-first appointment diary.</strong></p>
+        <p>Tap any 15-minute slot to add an appointment. Tap an appointment to edit or delete it. Your data stays in this browser on this device.</p>
+        <p class="version"><strong id="versionText"></strong><br>Build date: <span id="buildDateText"></span></p>
+      </div>
+      <div class="dialog-actions">
+        <span class="spacer"></span>
+        <button id="closeAboutButton" class="primary-btn" type="button">Close</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script>
+    'use strict';
+    const APP_VERSION = "V1.00";
+    const APP_BUILD_DATE = "2026-09-16";
+    const STORAGE_KEY = "diary.appointments.v1";
+
+    const elements = {
+      timeline: document.getElementById('timeline'),
+      previousDay: document.getElementById('previousDay'),
+      nextDay: document.getElementById('nextDay'),
+      todayButton: document.getElementById('todayButton'),
+      dateButton: document.getElementById('dateButton'),
+      datePicker: document.getElementById('datePicker'),
+      dateMain: document.getElementById('dateMain'),
+      dateSub: document.getElementById('dateSub'),
+      appointmentDialog: document.getElementById('appointmentDialog'),
+      appointmentForm: document.getElementById('appointmentForm'),
+      appointmentDialogTitle: document.getElementById('appointmentDialogTitle'),
+      appointmentId: document.getElementById('appointmentId'),
+      titleInput: document.getElementById('titleInput'),
+      startInput: document.getElementById('startInput'),
+      endInput: document.getElementById('endInput'),
+      notesInput: document.getElementById('notesInput'),
+      formError: document.getElementById('formError'),
+      deleteButton: document.getElementById('deleteButton'),
+      cancelButton: document.getElementById('cancelButton'),
+      aboutButton: document.getElementById('aboutButton'),
+      aboutDialog: document.getElementById('aboutDialog'),
+      closeAboutButton: document.getElementById('closeAboutButton'),
+      versionText: document.getElementById('versionText'),
+      buildDateText: document.getElementById('buildDateText')
+    };
+
+    let selectedDate = todayISO();
+    let appointments = loadAppointments();
+
+    function pad(number) { return String(number).padStart(2, '0'); }
+    function todayISO() {
+      const now = new Date();
+      return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    }
+    function parseLocalDate(iso) {
+      const [year, month, day] = iso.split('-').map(Number);
+      return new Date(year, month - 1, day, 12, 0, 0, 0);
+    }
+    function toISO(date) { return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`; }
+    function shiftDate(iso, days) {
+      const date = parseLocalDate(iso);
+      date.setDate(date.getDate() + days);
+      return toISO(date);
+    }
+    function minutesToTime(total) { return `${pad(Math.floor(total / 60) % 24)}:${pad(total % 60)}`; }
+    function timeToMinutes(time) {
+      const [hour, minute] = time.split(':').map(Number);
+      return hour * 60 + minute;
+    }
+    function newId() {
+      return window.crypto && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+    function isValidAppointment(item) {
+      return item && typeof item.id === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.date) &&
+        typeof item.title === 'string' && /^\d{2}:\d{2}$/.test(item.startTime) &&
+        /^\d{2}:\d{2}$/.test(item.endTime) && typeof item.notes === 'string';
+    }
+    function loadAppointments() {
+      try {
+        const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        return Array.isArray(value) ? value.filter(isValidAppointment) : [];
+      } catch (error) {
+        console.warn('Diary storage could not be read.', error);
+        return [];
+      }
+    }
+    function saveAppointments() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appointments));
+        return true;
+      } catch (error) {
+        console.error('Diary storage could not be saved.', error);
+        return false;
+      }
+    }
+    function formatSelectedDate() {
+      const date = parseLocalDate(selectedDate);
+      const isToday = selectedDate === todayISO();
+      elements.dateMain.textContent = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
+      elements.dateSub.textContent = isToday ? 'Today' : new Intl.DateTimeFormat(undefined, { weekday: 'long' }).format(date);
+      elements.datePicker.value = selectedDate;
+      document.title = `Diary · ${elements.dateMain.textContent}`;
+    }
+    function escapeText(value) {
+      const span = document.createElement('span');
+      span.textContent = value;
+      return span.innerHTML;
+    }
+    function appointmentsAt(time) {
+      return appointments
+        .filter(item => item.date === selectedDate && item.startTime === time)
+        .sort((a, b) => a.endTime.localeCompare(b.endTime) || a.title.localeCompare(b.title));
+    }
+    function render() {
+      formatSelectedDate();
+      const fragment = document.createDocumentFragment();
+      for (let total = 0; total < 24 * 60; total += 15) {
+        const time = minutesToTime(total);
+        const row = document.createElement('div');
+        row.className = `slot${total % 60 === 0 ? ' hour' : ''}`;
+        row.dataset.time = time;
+        row.setAttribute('role', 'button');
+        row.setAttribute('tabindex', '0');
+        row.setAttribute('aria-label', `Add appointment at ${time}`);
+        const timeLabel = document.createElement('div');
+        timeLabel.className = 'time';
+        timeLabel.textContent = time;
+        const body = document.createElement('div');
+        body.className = 'slot-body';
+        appointmentsAt(time).forEach(item => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'appointment';
+          button.dataset.id = item.id;
+          button.setAttribute('aria-label', `Edit ${item.title}, ${item.startTime} to ${item.endTime}`);
+          button.innerHTML = `<span class="appt-title">${escapeText(item.title)}</span><span class="appt-meta">${escapeText(item.startTime)}–${escapeText(item.endTime)}</span>`;
+          body.appendChild(button);
+        });
+        row.append(timeLabel, body);
+        fragment.appendChild(row);
+      }
+      elements.timeline.replaceChildren(fragment);
+    }
+    function setSelectedDate(iso, scrollToUsefulTime = false) {
+      selectedDate = iso;
+      render();
+      if (scrollToUsefulTime) requestAnimationFrame(scrollToDayStart);
+    }
+    function scrollToDayStart() {
+      const dayItems = appointments.filter(item => item.date === selectedDate).sort((a, b) => a.startTime.localeCompare(b.startTime));
+      let targetTime = dayItems.length ? dayItems[0].startTime : '06:00';
+      if (selectedDate === todayISO()) {
+        const now = new Date();
+        const rounded = Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 15) * 15 - 30);
+        targetTime = minutesToTime(rounded);
+      }
+      const target = elements.timeline.querySelector(`[data-time="${targetTime}"]`);
+      if (target) target.scrollIntoView({ block: 'start' });
+    }
+    function openAppointment(slotTime, appointment = null) {
+      elements.appointmentForm.reset();
+      elements.formError.textContent = '';
+      if (appointment) {
+        elements.appointmentDialogTitle.textContent = 'Edit appointment';
+        elements.appointmentId.value = appointment.id;
+        elements.titleInput.value = appointment.title;
+        elements.startInput.value = appointment.startTime;
+        elements.endInput.value = appointment.endTime;
+        elements.notesInput.value = appointment.notes;
+        elements.deleteButton.hidden = false;
+      } else {
+        elements.appointmentDialogTitle.textContent = 'Add appointment';
+        elements.appointmentId.value = '';
+        elements.startInput.value = slotTime;
+        elements.endInput.value = minutesToTime(Math.min(timeToMinutes(slotTime) + 30, 23 * 60 + 45));
+        elements.deleteButton.hidden = true;
+      }
+      elements.appointmentDialog.showModal();
+      requestAnimationFrame(() => elements.titleInput.focus());
+    }
+    function validateForm() {
+      const title = elements.titleInput.value.trim();
+      const startTime = elements.startInput.value;
+      const endTime = elements.endInput.value;
+      if (!title) return 'Please enter a title.';
+      if (!startTime || !endTime) return 'Please enter a start and end time.';
+      if (timeToMinutes(endTime) <= timeToMinutes(startTime)) return 'End time must be later than start time.';
+      return '';
+    }
+    function closeDialog(dialog) { if (dialog.open) dialog.close(); }
+
+    elements.timeline.addEventListener('click', event => {
+      const appointmentButton = event.target.closest('.appointment');
+      if (appointmentButton) {
+        event.stopPropagation();
+        const appointment = appointments.find(item => item.id === appointmentButton.dataset.id);
+        if (appointment) openAppointment(appointment.startTime, appointment);
+        return;
+      }
+      const slot = event.target.closest('.slot');
+      if (slot) openAppointment(slot.dataset.time);
+    });
+    elements.timeline.addEventListener('keydown', event => {
+      if ((event.key === 'Enter' || event.key === ' ') && event.target.classList.contains('slot')) {
+        event.preventDefault();
+        openAppointment(event.target.dataset.time);
+      }
+    });
+    elements.appointmentForm.addEventListener('submit', event => {
+      event.preventDefault();
+      const error = validateForm();
+      elements.formError.textContent = error;
+      if (error) return;
+      const id = elements.appointmentId.value;
+      const item = {
+        id: id || newId(), date: selectedDate,
+        title: elements.titleInput.value.trim(),
+        startTime: elements.startInput.value,
+        endTime: elements.endInput.value,
+        notes: elements.notesInput.value.trim()
+      };
+      const previous = appointments.slice();
+      if (id) appointments = appointments.map(existing => existing.id === id ? item : existing);
+      else appointments.push(item);
+      if (!saveAppointments()) {
+        appointments = previous;
+        elements.formError.textContent = 'Could not save. Browser storage may be unavailable or full.';
+        return;
+      }
+      closeDialog(elements.appointmentDialog);
+      render();
+    });
+    elements.deleteButton.addEventListener('click', () => {
+      const id = elements.appointmentId.value;
+      if (!id || !confirm('Delete this appointment?')) return;
+      const previous = appointments.slice();
+      appointments = appointments.filter(item => item.id !== id);
+      if (!saveAppointments()) {
+        appointments = previous;
+        elements.formError.textContent = 'Could not delete. Browser storage may be unavailable.';
+        return;
+      }
+      closeDialog(elements.appointmentDialog);
+      render();
+    });
+    elements.cancelButton.addEventListener('click', () => closeDialog(elements.appointmentDialog));
+    elements.appointmentDialog.addEventListener('click', event => { if (event.target === elements.appointmentDialog) closeDialog(elements.appointmentDialog); });
+    elements.previousDay.addEventListener('click', () => setSelectedDate(shiftDate(selectedDate, -1), true));
+    elements.nextDay.addEventListener('click', () => setSelectedDate(shiftDate(selectedDate, 1), true));
+    elements.todayButton.addEventListener('click', () => setSelectedDate(todayISO(), true));
+    elements.dateButton.addEventListener('click', () => {
+      elements.datePicker.value = selectedDate;
+      if (typeof elements.datePicker.showPicker === 'function') elements.datePicker.showPicker();
+      else elements.datePicker.click();
+    });
+    elements.datePicker.addEventListener('change', () => { if (elements.datePicker.value) setSelectedDate(elements.datePicker.value, true); });
+    elements.aboutButton.addEventListener('click', () => elements.aboutDialog.showModal());
+    elements.closeAboutButton.addEventListener('click', () => closeDialog(elements.aboutDialog));
+    elements.aboutDialog.addEventListener('click', event => { if (event.target === elements.aboutDialog) closeDialog(elements.aboutDialog); });
+
+    elements.versionText.textContent = APP_VERSION;
+    elements.buildDateText.textContent = APP_BUILD_DATE;
+    render();
+    requestAnimationFrame(scrollToDayStart);
+  </script>
+</body>
+</html>
