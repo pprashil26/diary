@@ -181,6 +181,102 @@
     .appt-title { display: block; overflow: hidden; font-weight: 730; font-size: 13px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
     .appt-meta { display: block; margin-top: 2px; overflow: hidden; color: var(--accent-deep); font-size: 10px; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
     .empty-hint { padding: 22px 16px; color: var(--muted); text-align: center; font-size: 13px; }
+    .content-shell { max-width: 1080px; margin: 0 auto; }
+    .calendar-open-btn { display: inline-flex; align-items: center; gap: 5px; }
+    .desktop-calendar { display: none; }
+    .running-calendar {
+      width: 100%;
+      color: var(--text);
+      background: var(--surface-strong);
+    }
+    .calendar-weekdays, .calendar-week {
+      display: grid;
+      grid-template-columns: 72px repeat(7, minmax(28px, 1fr));
+      align-items: center;
+    }
+    .calendar-weekdays {
+      position: sticky;
+      z-index: 2;
+      top: 0;
+      min-height: 31px;
+      border-bottom: 1px solid var(--line-strong);
+      background: #77766f;
+      color: #fff;
+      font-size: 11px;
+      font-weight: 720;
+      text-align: center;
+    }
+    .calendar-heading-label { padding-left: 7px; text-align: left; }
+    .calendar-week {
+      min-height: 36px;
+      border-bottom: 1px solid var(--line);
+    }
+    .calendar-month-marker {
+      align-self: stretch;
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      padding: 0 6px;
+      overflow: hidden;
+      color: var(--accent-deep);
+      background: #dcece2;
+      font-size: 11px;
+      font-weight: 760;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .calendar-month-marker.empty { background: transparent; }
+    .calendar-day {
+      position: relative;
+      align-self: stretch;
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      border-left: 1px solid var(--line);
+      border-radius: 0;
+      color: var(--text);
+      background: transparent;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      cursor: pointer;
+    }
+    .calendar-day.weekend { color: var(--muted); }
+    .calendar-day.has-entry { background: #fff2b8; }
+    .calendar-day.today::after {
+      content: '';
+      position: absolute;
+      right: 5px;
+      bottom: 4px;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+    .calendar-day.selected {
+      z-index: 1;
+      color: #fff;
+      background: var(--accent-deep);
+      font-weight: 760;
+      box-shadow: inset 0 0 0 2px var(--accent-deep);
+    }
+    .calendar-day.selected::after { background: #fff; }
+    .calendar-day:active { filter: brightness(.96); }
+    .calendar-dialog-inner { padding: 0; }
+    .calendar-dialog-head {
+      position: sticky;
+      z-index: 3;
+      top: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 48px;
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-strong);
+    }
+    .calendar-dialog-title { margin: 0; font-size: 17px; }
+    #calendarDialog { width: min(calc(100% - 18px), 480px); }
+    #mobileCalendarScroll { max-height: calc(100dvh - 90px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow: auto; }
     dialog {
       width: min(calc(100% - 22px), 440px);
       max-height: calc(100dvh - 22px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
@@ -249,6 +345,28 @@
       .appt-title { display: inline; font-size: 11px; line-height: 1.05; }
       .appt-meta { display: none; }
     }
+    @media (min-width: 900px) {
+      .content-shell {
+        display: grid;
+        grid-template-columns: minmax(0, 760px) 280px;
+        gap: 10px;
+        align-items: start;
+      }
+      .content-shell main { width: 100%; margin-left: 0; margin-right: 0; }
+      .desktop-calendar {
+        display: block;
+        height: calc(100dvh - 107px);
+        margin-top: 5px;
+        overflow: auto;
+        border: 1px solid var(--line);
+        border-radius: 15px;
+        background: var(--surface-strong);
+      }
+      .calendar-open-btn { display: none; }
+      .calendar-weekdays, .calendar-week { grid-template-columns: 67px repeat(7, minmax(25px, 1fr)); }
+      .calendar-week { min-height: 33px; }
+      .calendar-day { font-size: 11px; }
+    }
     @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
   </style>
 </head>
@@ -268,13 +386,19 @@
       </div>
       <div class="toolbar">
         <button id="todayButton" class="small-btn" type="button">Today</button>
+        <button id="calendarButton" class="small-btn secondary calendar-open-btn" type="button">Calendar</button>
         <button id="aboutButton" class="small-btn secondary" type="button">Help / About</button>
       </div>
     </header>
 
-    <main>
-      <section id="timeline" class="timeline" aria-label="Daily appointments"></section>
-    </main>
+    <div class="content-shell">
+      <main>
+        <section id="timeline" class="timeline" aria-label="Daily appointments"></section>
+      </main>
+      <aside id="desktopCalendarScroll" class="desktop-calendar" aria-label="Running calendar">
+        <div id="desktopCalendar" class="running-calendar"></div>
+      </aside>
+    </div>
   </div>
 
   <dialog id="appointmentDialog" aria-labelledby="appointmentDialogTitle">
@@ -309,12 +433,24 @@
     </form>
   </dialog>
 
+  <dialog id="calendarDialog" aria-labelledby="calendarDialogTitle">
+    <div class="calendar-dialog-inner">
+      <div class="calendar-dialog-head">
+        <h2 id="calendarDialogTitle" class="calendar-dialog-title">Calendar</h2>
+        <button id="closeCalendarButton" class="text-btn" type="button">Close</button>
+      </div>
+      <div id="mobileCalendarScroll">
+        <div id="mobileCalendar" class="running-calendar"></div>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="aboutDialog" aria-labelledby="aboutDialogTitle">
     <div class="dialog-inner">
       <h2 id="aboutDialogTitle" class="dialog-title">Diary</h2>
       <div class="about-copy">
         <p><strong>A simple local-first appointment diary.</strong></p>
-        <p>Tap any 30-minute slot to add an appointment. Tap an appointment to edit or delete it. Your data stays in this browser on this device.</p>
+        <p>Tap any 30-minute slot to add an appointment. Tap an appointment to edit or delete it. Use Calendar to jump quickly to another date; yellow dates contain appointments. Your data stays in this browser on this device.</p>
         <p id="storageStatus" class="version">Automatic backup is active.</p>
         <p class="version"><strong id="versionText"></strong><br>Build date: <span id="buildDateText"></span></p>
       </div>
@@ -330,7 +466,7 @@
 
   <script>
     'use strict';
-    const APP_VERSION = "V1.30";
+    const APP_VERSION = "V1.40";
     const APP_BUILD_DATE = "2026-09-16";
     const STORAGE_KEY = "diary.appointments.v1";
     const BACKUP_KEY = "diary.appointments.backup.v1";
@@ -357,6 +493,13 @@
       deleteButton: document.getElementById('deleteButton'),
       cancelButton: document.getElementById('cancelButton'),
       aboutButton: document.getElementById('aboutButton'),
+      calendarButton: document.getElementById('calendarButton'),
+      calendarDialog: document.getElementById('calendarDialog'),
+      closeCalendarButton: document.getElementById('closeCalendarButton'),
+      mobileCalendar: document.getElementById('mobileCalendar'),
+      mobileCalendarScroll: document.getElementById('mobileCalendarScroll'),
+      desktopCalendar: document.getElementById('desktopCalendar'),
+      desktopCalendarScroll: document.getElementById('desktopCalendarScroll'),
       aboutDialog: document.getElementById('aboutDialog'),
       closeAboutButton: document.getElementById('closeAboutButton'),
       versionText: document.getElementById('versionText'),
@@ -477,6 +620,7 @@
         throw new Error('The imported data could not be saved safely.');
       }
       render();
+      renderCalendars();
       updateStorageStatus(`Import complete · ${appointments.length} appointment${appointments.length === 1 ? '' : 's'} restored`);
     }
     function formatSelectedDate() {
@@ -534,9 +678,79 @@
       }
       elements.timeline.replaceChildren(fragment);
     }
+    function startOfCalendarRange() {
+      const date = parseLocalDate(selectedDate);
+      date.setMonth(date.getMonth() - 4, 1);
+      const day = date.getDay();
+      date.setDate(date.getDate() - ((day + 6) % 7));
+      return date;
+    }
+    function addDays(date, number) {
+      const copy = new Date(date);
+      copy.setDate(copy.getDate() + number);
+      return copy;
+    }
+    function buildRunningCalendar() {
+      const root = document.createElement('div');
+      const weekdays = document.createElement('div');
+      weekdays.className = 'calendar-weekdays';
+      weekdays.innerHTML = '<span class="calendar-heading-label">Month</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span>';
+      root.appendChild(weekdays);
+      const entryDates = new Set(appointments.map(item => item.date));
+      const rangeStart = startOfCalendarRange();
+      const rangeEnd = new Date(rangeStart);
+      rangeEnd.setMonth(rangeEnd.getMonth() + 17);
+      let cursor = new Date(rangeStart);
+      while (cursor < rangeEnd) {
+        const week = document.createElement('div');
+        week.className = 'calendar-week';
+        const weekDates = Array.from({ length: 7 }, (_, index) => addDays(cursor, index));
+        const monthStart = weekDates.find(date => date.getDate() === 1);
+        const marker = document.createElement('div');
+        marker.className = `calendar-month-marker${monthStart ? '' : ' empty'}`;
+        if (monthStart) {
+          marker.textContent = new Intl.DateTimeFormat(undefined, { month: 'short' }).format(monthStart);
+          marker.title = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' }).format(monthStart);
+        }
+        week.appendChild(marker);
+        weekDates.forEach((date, index) => {
+          const iso = toISO(date);
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = `calendar-day${index > 4 ? ' weekend' : ''}${entryDates.has(iso) ? ' has-entry' : ''}${iso === todayISO() ? ' today' : ''}${iso === selectedDate ? ' selected' : ''}`;
+          button.dataset.date = iso;
+          button.textContent = pad(date.getDate());
+          button.title = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date);
+          button.setAttribute('aria-label', `${button.title}${entryDates.has(iso) ? ', has appointments' : ''}${iso === selectedDate ? ', selected' : ''}`);
+          week.appendChild(button);
+        });
+        root.appendChild(week);
+        cursor = addDays(cursor, 7);
+      }
+      return root;
+    }
+    function renderCalendars() {
+      [elements.desktopCalendar, elements.mobileCalendar].forEach(container => {
+        if (!container) return;
+        container.replaceChildren(buildRunningCalendar());
+      });
+    }
+    function scrollCalendarToSelected(scroller) {
+      if (!scroller) return;
+      requestAnimationFrame(() => {
+        const selected = scroller.querySelector('.calendar-day.selected');
+        if (selected) selected.scrollIntoView({ block: 'center' });
+      });
+    }
+    function chooseCalendarDate(iso) {
+      setSelectedDate(iso, true);
+      closeDialog(elements.calendarDialog);
+    }
     function setSelectedDate(iso, scrollToUsefulTime = false) {
       selectedDate = iso;
       render();
+      renderCalendars();
+      scrollCalendarToSelected(elements.desktopCalendarScroll);
       if (scrollToUsefulTime) requestAnimationFrame(scrollToDayStart);
     }
     function scrollToDayStart() {
@@ -658,6 +872,7 @@
       }
       closeDialog(elements.appointmentDialog);
       render();
+      renderCalendars();
     });
     elements.deleteButton.addEventListener('click', () => {
       const id = elements.appointmentId.value;
@@ -671,6 +886,7 @@
       }
       closeDialog(elements.appointmentDialog);
       render();
+      renderCalendars();
     });
     elements.startInput.addEventListener('change', () => {
       const suggestedEnd = timeToMinutes(elements.startInput.value) + 30;
@@ -684,6 +900,19 @@
     elements.nextDay.addEventListener('click', () => setSelectedDate(shiftDate(selectedDate, 1), true));
     elements.todayButton.addEventListener('click', () => setSelectedDate(todayISO(), true));
     elements.datePicker.addEventListener('change', () => { if (elements.datePicker.value) setSelectedDate(elements.datePicker.value, true); });
+    function handleCalendarClick(event) {
+      const day = event.target.closest('.calendar-day');
+      if (day) chooseCalendarDate(day.dataset.date);
+    }
+    elements.desktopCalendar.addEventListener('click', handleCalendarClick);
+    elements.mobileCalendar.addEventListener('click', handleCalendarClick);
+    elements.calendarButton.addEventListener('click', () => {
+      renderCalendars();
+      elements.calendarDialog.showModal();
+      scrollCalendarToSelected(elements.mobileCalendarScroll);
+    });
+    elements.closeCalendarButton.addEventListener('click', () => closeDialog(elements.calendarDialog));
+    elements.calendarDialog.addEventListener('click', event => { if (event.target === elements.calendarDialog) closeDialog(elements.calendarDialog); });
     elements.aboutButton.addEventListener('click', () => elements.aboutDialog.showModal());
     elements.closeAboutButton.addEventListener('click', () => closeDialog(elements.aboutDialog));
     elements.aboutDialog.addEventListener('click', event => { if (event.target === elements.aboutDialog) closeDialog(elements.aboutDialog); });
@@ -712,6 +941,8 @@
       setTimeout(() => alert('Diary recovered your appointments from the automatic backup because the primary copy was unavailable or invalid.'), 0);
     }
     render();
+    renderCalendars();
+    scrollCalendarToSelected(elements.desktopCalendarScroll);
     requestAnimationFrame(scrollToDayStart);
   </script>
 </body>
