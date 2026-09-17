@@ -46,14 +46,14 @@
       position: sticky;
       z-index: 20;
       top: 0;
-      padding: calc(7px + env(safe-area-inset-top)) 10px 8px;
+      padding: calc(4px + env(safe-area-inset-top)) 8px 4px;
       border-bottom: 1px solid var(--line);
       background: rgba(246, 243, 238, .96);
       backdrop-filter: blur(12px);
     }
     .day-nav {
       display: grid;
-      grid-template-columns: 44px minmax(92px, 1fr) 44px auto;
+      grid-template-columns: 38px minmax(92px, 1fr) 38px auto;
       gap: 7px;
       align-items: center;
       max-width: 760px;
@@ -68,8 +68,8 @@
       border-radius: 12px;
     }
     .icon-btn {
-      width: 44px;
-      height: 44px;
+      width: 38px;
+      height: 38px;
       display: grid;
       place-items: center;
       color: var(--accent-deep);
@@ -82,14 +82,14 @@
     .date-wrap {
       position: relative;
       min-width: 0;
-      height: 44px;
+      height: 38px;
       border-radius: 12px;
     }
     .date-btn {
       width: 100%;
       min-width: 0;
-      height: 44px;
-      padding: 4px 10px;
+      height: 38px;
+      padding: 2px 8px;
       color: var(--text);
       background: transparent;
       pointer-events: none;
@@ -111,8 +111,8 @@
       -webkit-appearance: none;
       appearance: none;
     }
-    .date-main { display: block; font-weight: 730; line-height: 1.2; font-size: 16px; }
-    .date-sub { display: block; margin-top: 2px; color: var(--muted); line-height: 1.1; font-size: 12px; }
+    .date-main { display: block; font-weight: 730; line-height: 1.2; font-size: 15px; }
+    .date-sub { display: none; }
     .small-btn {
       min-height: 34px;
       padding: 6px 14px;
@@ -327,7 +327,7 @@
       body { padding-left: 14px; padding-right: 14px; overflow: hidden; }
       .topbar { border: 1px solid var(--line); border-top: 0; border-radius: 0 0 15px 15px; }
       main {
-        height: calc(100dvh - 61px);
+        height: calc(100dvh - 52px);
         margin-top: 5px;
         padding-bottom: 0;
         border: 1px solid var(--line);
@@ -364,11 +364,11 @@
       .desktop-calendar {
         position: fixed;
         z-index: 10;
-        top: 61px;
+        top: 52px;
         right: 14px;
         display: block;
         width: var(--desktop-calendar-width);
-        height: calc(100dvh - 66px);
+        height: calc(100dvh - 57px);
         overflow: auto;
         border: 1px solid var(--line);
         border-radius: 15px;
@@ -398,7 +398,7 @@
         <div class="header-actions">
           <button id="todayButton" class="small-btn header-action" type="button"><span class="header-action-long">Today</span><span class="header-action-short">T</span></button>
           <button id="calendarButton" class="small-btn secondary calendar-open-btn header-action" type="button"><span class="header-action-long">Calendar</span><span class="header-action-short">Cal</span></button>
-          <button id="aboutButton" class="small-btn secondary header-action" type="button" aria-label="Help and About"><span class="header-action-long">Help</span><span class="header-action-short">?</span></button>
+          <button id="aboutButton" class="small-btn secondary header-action" type="button" aria-label="Help and About"><span class="header-action-long">ⓘ</span><span class="header-action-short">?</span></button>
         </div>
       </div>
     </header>
@@ -478,7 +478,7 @@
 
   <script>
     'use strict';
-    const APP_VERSION = "V1.42";
+    const APP_VERSION = "V1.43";
     const APP_BUILD_DATE = "2026-09-16";
     const STORAGE_KEY = "diary.appointments.v1";
     const BACKUP_KEY = "diary.appointments.backup.v1";
