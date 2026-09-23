@@ -212,6 +212,93 @@
     .appt-meta { display: block; margin-top: 2px; overflow: hidden; color: var(--accent-deep); font-size: 10px; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
     .empty-hint { padding: 22px 16px; color: var(--muted); text-align: center; font-size: 13px; }
     .content-shell { max-width: 1080px; margin: 0 auto; }
+    .tasks-open-btn { display: inline-flex; align-items: center; gap: 5px; }
+    .desktop-tasks { display: none; }
+    .task-panel {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      color: var(--text);
+      background: var(--surface-strong);
+    }
+    .task-panel-head {
+      flex: 0 0 auto;
+      padding: 9px 10px 7px;
+      border-bottom: 1px solid var(--line);
+    }
+    .task-panel-title {
+      margin: 0 0 7px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 760;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .task-capture {
+      width: 100%;
+      min-height: 34px;
+      padding: 7px 8px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      outline: 0;
+      color: var(--text);
+      background: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .02em;
+      text-transform: uppercase;
+    }
+    .task-capture::placeholder { color: #a29d94; font-weight: 650; }
+    .task-capture:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(99, 123, 109, .10); }
+    .task-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 3px 7px 9px; }
+    .task-empty { padding: 13px 5px; color: #aaa49a; text-align: center; font-size: 10px; letter-spacing: .04em; }
+    .task-row {
+      display: grid;
+      grid-template-columns: 20px minmax(0, 1fr) 22px;
+      align-items: start;
+      gap: 3px;
+      min-height: 29px;
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(232, 226, 217, .72);
+    }
+    .task-toggle, .task-delete {
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      color: var(--muted);
+      background: transparent;
+      cursor: pointer;
+    }
+    .task-toggle {
+      width: 18px;
+      height: 20px;
+      font-size: 14px;
+      line-height: 20px;
+    }
+    .task-delete {
+      width: 22px;
+      height: 20px;
+      opacity: .28;
+      font-size: 15px;
+      line-height: 20px;
+    }
+    .task-row:hover .task-delete, .task-delete:focus { opacity: .75; }
+    .task-title {
+      min-width: 0;
+      padding-top: 2px;
+      overflow-wrap: anywhere;
+      color: var(--text);
+      font-size: 11px;
+      font-weight: 680;
+      line-height: 1.28;
+      letter-spacing: .015em;
+      text-transform: uppercase;
+    }
+    .task-row.completed { opacity: .48; }
+    .task-row.completed .task-title { text-decoration: line-through; }
+    #tasksDialog { width: min(calc(100% - 22px), 420px); }
+    #mobileTaskPanel { max-height: calc(100dvh - 90px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+    #mobileTaskPanel .task-list { min-height: 180px; max-height: calc(100dvh - 190px); }
     .calendar-open-btn { display: inline-flex; align-items: center; gap: 5px; }
     .desktop-calendar { display: none; }
     .running-calendar {
@@ -383,6 +470,20 @@
       .appt-meta { display: none; }
     }
     @media (min-width: 900px) {
+      .desktop-tasks {
+        position: fixed;
+        z-index: 10;
+        top: 66px;
+        left: 14px;
+        display: flex;
+        width: 220px;
+        height: calc(100dvh - 71px);
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 15px;
+        background: var(--surface-strong);
+      }
+      .tasks-open-btn { display: none; }
       .content-shell {
         --desktop-calendar-width: 260px;
         --desktop-calendar-gap: 12px;
@@ -430,6 +531,7 @@
         <button id="nextDay" class="icon-btn" type="button" aria-label="Next day">›</button>
         <div class="header-actions">
           <button id="todayButton" class="small-btn header-action" type="button"><span class="header-action-long">Today</span><span class="header-action-short">T</span></button>
+          <button id="tasksButton" class="small-btn secondary tasks-open-btn header-action" type="button">Tasks</button>
           <button id="calendarButton" class="small-btn secondary calendar-open-btn header-action" type="button"><span class="header-action-long">Calendar</span><span class="header-action-short">Cal</span></button>
           <button id="aboutButton" class="small-btn secondary header-action" type="button" aria-label="Help and About"><span aria-hidden="true">ⓘ</span></button>
         </div>
@@ -437,6 +539,13 @@
     </header>
 
     <div class="content-shell">
+      <aside id="desktopTasks" class="desktop-tasks task-panel" aria-label="Tasks">
+        <div class="task-panel-head">
+          <h2 class="task-panel-title">Tasks</h2>
+          <input id="desktopTaskInput" class="task-capture" type="text" maxlength="160" placeholder="+ Task" autocomplete="off" aria-label="Add task">
+        </div>
+        <div id="desktopTaskList" class="task-list" aria-live="polite"></div>
+      </aside>
       <main>
         <section id="timeline" class="timeline" aria-label="Daily appointments"></section>
       </main>
@@ -478,6 +587,20 @@
     </form>
   </dialog>
 
+  <dialog id="tasksDialog" aria-labelledby="tasksDialogTitle">
+    <div class="calendar-dialog-inner">
+      <div class="calendar-dialog-head">
+        <h2 id="tasksDialogTitle" class="calendar-dialog-title">Tasks</h2>
+        <button id="closeTasksButton" class="text-btn" type="button">Close</button>
+      </div>
+      <div id="mobileTaskPanel" class="task-panel">
+        <div class="task-panel-head">
+          <input id="mobileTaskInput" class="task-capture" type="text" maxlength="160" placeholder="+ Task" autocomplete="off" aria-label="Add task">
+        </div>
+        <div id="mobileTaskList" class="task-list" aria-live="polite"></div>
+      </div>
+    </div>
+  </dialog>
   <dialog id="calendarDialog" aria-labelledby="calendarDialogTitle">
     <div class="calendar-dialog-inner">
       <div class="calendar-dialog-head">
@@ -495,7 +618,7 @@
       <h2 id="aboutDialogTitle" class="dialog-title">Diary</h2>
       <div class="about-copy">
         <p><strong>A simple local-first appointment diary.</strong></p>
-        <p>Tap any 30-minute slot to add an appointment. Tap an appointment to edit or delete it. Use Calendar to jump quickly to another date; yellow dates contain appointments. Your data stays in this browser on this device.</p>
+        <p>Tap any 30-minute slot to add an appointment. Tap an appointment to edit or delete it. Use the minimal Tasks panel as a quick uppercase scratchpad, and Calendar to jump to another date; yellow dates contain appointments. Your data stays in this browser on this device.</p>
         <p id="storageStatus" class="version">Automatic backup is active.</p>
         <p class="version"><strong id="versionText"></strong><br>Build date: <span id="buildDateText"></span></p>
       </div>
@@ -511,11 +634,13 @@
 
   <script>
     'use strict';
-    const APP_VERSION = "V1.44";
+    const APP_VERSION = "V1.45";
     const APP_BUILD_DATE = "2026-09-16";
     const STORAGE_KEY = "diary.appointments.v1";
     const BACKUP_KEY = "diary.appointments.backup.v1";
     const BACKUP_META_KEY = "diary.appointments.backup.meta.v1";
+    const TASKS_STORAGE_KEY = "diary.tasks.v1";
+    const TASKS_BACKUP_KEY = "diary.tasks.backup.v1";
 
     const elements = {
       timeline: document.getElementById('timeline'),
@@ -552,11 +677,19 @@
       storageStatus: document.getElementById('storageStatus'),
       exportButton: document.getElementById('exportButton'),
       importButton: document.getElementById('importButton'),
-      importFile: document.getElementById('importFile')
+      importFile: document.getElementById('importFile'),
+      tasksButton: document.getElementById('tasksButton'),
+      tasksDialog: document.getElementById('tasksDialog'),
+      closeTasksButton: document.getElementById('closeTasksButton'),
+      desktopTaskInput: document.getElementById('desktopTaskInput'),
+      mobileTaskInput: document.getElementById('mobileTaskInput'),
+      desktopTaskList: document.getElementById('desktopTaskList'),
+      mobileTaskList: document.getElementById('mobileTaskList')
     };
 
     let selectedDate = todayISO();
     let appointments = loadAppointments();
+    let tasks = loadTasks();
 
     function pad(number) { return String(number).padStart(2, '0'); }
     function todayISO() {
@@ -595,6 +728,103 @@
       } catch (error) {
         return null;
       }
+    }
+    function isValidTask(item) {
+      return item && typeof item.id === 'string' && typeof item.title === 'string' &&
+        typeof item.completed === 'boolean' && typeof item.createdAt === 'string';
+    }
+    function parseStoredTasks(raw) {
+      if (typeof raw !== 'string' || raw === '') return null;
+      try {
+        const value = JSON.parse(raw);
+        if (!Array.isArray(value) || !value.every(isValidTask)) return null;
+        return value.map(item => ({ ...item, title: item.title.trim().toUpperCase() })).filter(item => item.title);
+      } catch (error) {
+        return null;
+      }
+    }
+    function loadTasks() {
+      const mainRaw = localStorage.getItem(TASKS_STORAGE_KEY);
+      const main = parseStoredTasks(mainRaw);
+      if (main) return main;
+      const backupRaw = localStorage.getItem(TASKS_BACKUP_KEY);
+      const backup = parseStoredTasks(backupRaw);
+      if (backup) {
+        try { writeVerified(TASKS_STORAGE_KEY, JSON.stringify(backup)); }
+        catch (error) { console.warn('Diary recovered tasks in memory but could not repair primary task storage.', error); }
+        return backup;
+      }
+      return [];
+    }
+    function saveTasks() {
+      const payload = JSON.stringify(tasks);
+      try {
+        writeVerified(TASKS_BACKUP_KEY, payload);
+        writeVerified(TASKS_STORAGE_KEY, payload);
+        return true;
+      } catch (error) {
+        console.error('Diary tasks could not be saved safely.', error);
+        return false;
+      }
+    }
+    function normaliseTaskTitle(value) { return value.trim().replace(/\s+/g, ' ').toUpperCase(); }
+    function renderTaskList(container) {
+      if (!container) return;
+      const sorted = tasks.slice().sort((a, b) => Number(a.completed) - Number(b.completed) || a.createdAt.localeCompare(b.createdAt));
+      if (!sorted.length) {
+        const empty = document.createElement('div');
+        empty.className = 'task-empty';
+        empty.textContent = 'NO TASKS';
+        container.replaceChildren(empty);
+        return;
+      }
+      const fragment = document.createDocumentFragment();
+      sorted.forEach(item => {
+        const row = document.createElement('div');
+        row.className = `task-row${item.completed ? ' completed' : ''}`;
+        row.dataset.id = item.id;
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'task-toggle';
+        toggle.textContent = item.completed ? '✓' : '○';
+        toggle.setAttribute('aria-label', `${item.completed ? 'Mark active' : 'Complete'} ${item.title}`);
+        const title = document.createElement('div');
+        title.className = 'task-title';
+        title.textContent = item.title;
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'task-delete';
+        remove.textContent = '×';
+        remove.setAttribute('aria-label', `Delete ${item.title}`);
+        row.append(toggle, title, remove);
+        fragment.appendChild(row);
+      });
+      container.replaceChildren(fragment);
+    }
+    function renderTasks() {
+      renderTaskList(elements.desktopTaskList);
+      renderTaskList(elements.mobileTaskList);
+    }
+    function addTaskFromInput(input) {
+      const title = normaliseTaskTitle(input.value);
+      input.value = '';
+      if (!title) return;
+      const previous = tasks.slice();
+      tasks.push({ id: newId(), title, completed: false, createdAt: new Date().toISOString() });
+      if (!saveTasks()) { tasks = previous; alert('Task could not be saved. Browser storage may be unavailable or full.'); return; }
+      renderTasks();
+    }
+    function handleTaskListClick(event) {
+      const row = event.target.closest('.task-row');
+      if (!row) return;
+      const previous = tasks.map(item => ({ ...item }));
+      if (event.target.closest('.task-toggle')) {
+        tasks = tasks.map(item => item.id === row.dataset.id ? { ...item, completed: !item.completed } : item);
+      } else if (event.target.closest('.task-delete')) {
+        tasks = tasks.filter(item => item.id !== row.dataset.id);
+      } else return;
+      if (!saveTasks()) { tasks = previous; alert('Task change could not be saved.'); return; }
+      renderTasks();
     }
     function writeVerified(key, value) {
       localStorage.setItem(key, value);
@@ -641,7 +871,8 @@
         schemaVersion: 1,
         appVersion: APP_VERSION,
         exportedAt: new Date().toISOString(),
-        appointments: appointments.slice().sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
+        appointments: appointments.slice().sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime)),
+        tasks: tasks.map(item => ({ ...item }))
       };
       const blob = new Blob([JSON.stringify(exportObject, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -658,14 +889,20 @@
       const data = JSON.parse(text);
       const imported = Array.isArray(data) ? data : data && data.appointments;
       if (!Array.isArray(imported) || !imported.every(isValidAppointment)) throw new Error('This is not a valid Diary backup file.');
+      const importedTasks = data && !Array.isArray(data) && Array.isArray(data.tasks) ? data.tasks : null;
+      if (importedTasks && !importedTasks.every(isValidTask)) throw new Error('This Diary backup contains invalid task data.');
       const previous = appointments.slice();
+      const previousTasks = tasks.map(item => ({ ...item }));
       appointments = imported.map(item => ({ ...item }));
-      if (!saveAppointments()) {
+      if (importedTasks) tasks = importedTasks.map(item => ({ ...item, title: normaliseTaskTitle(item.title) })).filter(item => item.title);
+      if (!saveAppointments() || (importedTasks && !saveTasks())) {
         appointments = previous;
+        tasks = previousTasks;
         throw new Error('The imported data could not be saved safely.');
       }
       render();
       renderCalendars();
+      renderTasks();
       updateStorageStatus(`Import complete · ${appointments.length} appointment${appointments.length === 1 ? '' : 's'} restored`);
     }
     function formatSelectedDate() {
@@ -958,6 +1195,25 @@
     });
     elements.closeCalendarButton.addEventListener('click', () => closeDialog(elements.calendarDialog));
     elements.calendarDialog.addEventListener('click', event => { if (event.target === elements.calendarDialog) closeDialog(elements.calendarDialog); });
+    [elements.desktopTaskInput, elements.mobileTaskInput].forEach(input => {
+      input.addEventListener('input', () => {
+        const start = input.selectionStart;
+        input.value = input.value.toUpperCase();
+        if (start !== null) input.setSelectionRange(start, start);
+      });
+      input.addEventListener('keydown', event => {
+        if (event.key === 'Enter') { event.preventDefault(); addTaskFromInput(input); }
+      });
+    });
+    elements.desktopTaskList.addEventListener('click', handleTaskListClick);
+    elements.mobileTaskList.addEventListener('click', handleTaskListClick);
+    elements.tasksButton.addEventListener('click', () => {
+      renderTasks();
+      elements.tasksDialog.showModal();
+      requestAnimationFrame(() => elements.mobileTaskInput.focus());
+    });
+    elements.closeTasksButton.addEventListener('click', () => closeDialog(elements.tasksDialog));
+    elements.tasksDialog.addEventListener('click', event => { if (event.target === elements.tasksDialog) closeDialog(elements.tasksDialog); });
     elements.aboutButton.addEventListener('click', () => elements.aboutDialog.showModal());
     elements.closeAboutButton.addEventListener('click', () => closeDialog(elements.aboutDialog));
     elements.aboutDialog.addEventListener('click', event => { if (event.target === elements.aboutDialog) closeDialog(elements.aboutDialog); });
@@ -987,6 +1243,7 @@
     }
     render();
     renderCalendars();
+    renderTasks();
     scrollCalendarToSelected(elements.desktopCalendarScroll);
     requestAnimationFrame(scrollToDayStart);
   </script>
