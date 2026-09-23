@@ -470,6 +470,12 @@
       .appt-meta { display: none; }
     }
     @media (min-width: 900px) {
+      .topbar {
+        width: min(760px, calc(100vw - 572px));
+        max-width: none;
+        margin-left: auto;
+        margin-right: auto;
+      }
       .desktop-tasks {
         position: fixed;
         z-index: 10;
@@ -634,7 +640,7 @@
 
   <script>
     'use strict';
-    const APP_VERSION = "V1.45";
+    const APP_VERSION = "V1.45.1";
     const APP_BUILD_DATE = "2026-09-16";
     const STORAGE_KEY = "diary.appointments.v1";
     const BACKUP_KEY = "diary.appointments.backup.v1";
