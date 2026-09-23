@@ -251,6 +251,30 @@
     .task-capture::placeholder { color: #a29d94; font-weight: 650; }
     .task-capture:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(99, 123, 109, .10); }
     .task-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 3px 7px 9px; }
+    .task-panel-footer {
+      flex: 0 0 auto;
+      min-height: 32px;
+      padding: 5px 9px;
+      border-top: 1px solid var(--line);
+      background: rgba(246, 243, 238, .45);
+    }
+    .archived-link {
+      display: none;
+      width: 100%;
+      min-height: 22px;
+      padding: 2px 4px;
+      border: 0;
+      color: var(--muted);
+      background: transparent;
+      text-align: left;
+      font-size: 10px;
+      font-weight: 720;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .archived-link.visible { display: block; }
+    .archived-link:hover, .archived-link:focus { color: var(--accent-deep); }
     .task-empty { padding: 13px 5px; color: #aaa49a; text-align: center; font-size: 10px; letter-spacing: .04em; }
     .task-row {
       display: grid;
@@ -261,7 +285,7 @@
       padding: 4px 0;
       border-bottom: 1px solid rgba(232, 226, 217, .72);
     }
-    .task-toggle, .task-delete {
+    .task-toggle, .task-archive, .task-restore {
       min-width: 0;
       padding: 0;
       border: 0;
@@ -275,14 +299,37 @@
       font-size: 14px;
       line-height: 20px;
     }
-    .task-delete {
+    .task-archive {
       width: 22px;
       height: 20px;
-      opacity: .28;
-      font-size: 15px;
+      opacity: .34;
+      font-size: 13px;
       line-height: 20px;
     }
-    .task-row:hover .task-delete, .task-delete:focus { opacity: .75; }
+    .task-row:hover .task-archive, .task-archive:focus { opacity: .85; }
+    .task-restore {
+      min-height: 24px;
+      padding: 2px 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--accent-deep);
+      background: var(--accent-soft);
+      font-size: 10px;
+      font-weight: 720;
+      line-height: 1;
+    }
+    .archived-task-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      padding: 5px 0;
+      border-bottom: 1px solid rgba(232, 226, 217, .72);
+    }
+    .archived-task-row .task-title { padding-top: 0; }
+    #archivedTasksDialog { width: min(calc(100% - 22px), 440px); }
+    #archivedTasksList { min-height: 100px; max-height: calc(100dvh - 150px); }
     .task-title {
       min-width: 0;
       padding-top: 2px;
@@ -551,6 +598,9 @@
           <input id="desktopTaskInput" class="task-capture" type="text" maxlength="160" placeholder="+ Task" autocomplete="off" aria-label="Add task">
         </div>
         <div id="desktopTaskList" class="task-list" aria-live="polite"></div>
+        <div class="task-panel-footer">
+          <button id="desktopArchivedLink" class="archived-link" type="button"></button>
+        </div>
       </aside>
       <main>
         <section id="timeline" class="timeline" aria-label="Daily appointments"></section>
@@ -604,7 +654,19 @@
           <input id="mobileTaskInput" class="task-capture" type="text" maxlength="160" placeholder="+ Task" autocomplete="off" aria-label="Add task">
         </div>
         <div id="mobileTaskList" class="task-list" aria-live="polite"></div>
+        <div class="task-panel-footer">
+          <button id="mobileArchivedLink" class="archived-link" type="button"></button>
+        </div>
       </div>
+    </div>
+  </dialog>
+  <dialog id="archivedTasksDialog" aria-labelledby="archivedTasksDialogTitle">
+    <div class="calendar-dialog-inner">
+      <div class="calendar-dialog-head">
+        <h2 id="archivedTasksDialogTitle" class="calendar-dialog-title">Archived Tasks</h2>
+        <button id="closeArchivedTasksButton" class="text-btn" type="button">Close</button>
+      </div>
+      <div id="archivedTasksList" class="task-list" aria-live="polite"></div>
     </div>
   </dialog>
   <dialog id="calendarDialog" aria-labelledby="calendarDialogTitle">
@@ -640,7 +702,7 @@
 
   <script>
     'use strict';
-    const APP_VERSION = "V1.45.1";
+    const APP_VERSION = "V1.46";
     const APP_BUILD_DATE = "2026-09-16";
     const STORAGE_KEY = "diary.appointments.v1";
     const BACKUP_KEY = "diary.appointments.backup.v1";
@@ -690,7 +752,12 @@
       desktopTaskInput: document.getElementById('desktopTaskInput'),
       mobileTaskInput: document.getElementById('mobileTaskInput'),
       desktopTaskList: document.getElementById('desktopTaskList'),
-      mobileTaskList: document.getElementById('mobileTaskList')
+      mobileTaskList: document.getElementById('mobileTaskList'),
+      desktopArchivedLink: document.getElementById('desktopArchivedLink'),
+      mobileArchivedLink: document.getElementById('mobileArchivedLink'),
+      archivedTasksDialog: document.getElementById('archivedTasksDialog'),
+      archivedTasksList: document.getElementById('archivedTasksList'),
+      closeArchivedTasksButton: document.getElementById('closeArchivedTasksButton')
     };
 
     let selectedDate = todayISO();
@@ -737,14 +804,21 @@
     }
     function isValidTask(item) {
       return item && typeof item.id === 'string' && typeof item.title === 'string' &&
-        typeof item.completed === 'boolean' && typeof item.createdAt === 'string';
+        typeof item.completed === 'boolean' && typeof item.createdAt === 'string' &&
+        (item.archived === undefined || typeof item.archived === 'boolean') &&
+        (item.archivedAt === undefined || item.archivedAt === null || typeof item.archivedAt === 'string');
     }
     function parseStoredTasks(raw) {
       if (typeof raw !== 'string' || raw === '') return null;
       try {
         const value = JSON.parse(raw);
         if (!Array.isArray(value) || !value.every(isValidTask)) return null;
-        return value.map(item => ({ ...item, title: item.title.trim().toUpperCase() })).filter(item => item.title);
+        return value.map(item => ({
+          ...item,
+          title: item.title.trim().toUpperCase(),
+          archived: item.archived === true,
+          archivedAt: item.archived === true && typeof item.archivedAt === 'string' ? item.archivedAt : null
+        })).filter(item => item.title);
       } catch (error) {
         return null;
       }
@@ -774,13 +848,22 @@
       }
     }
     function normaliseTaskTitle(value) { return value.trim().replace(/\s+/g, ' ').toUpperCase(); }
+    function activeTasks() { return tasks.filter(item => !item.archived); }
+    function archivedTasks() { return tasks.filter(item => item.archived); }
+    function updateArchivedLinks() {
+      const count = archivedTasks().length;
+      [elements.desktopArchivedLink, elements.mobileArchivedLink].forEach(link => {
+        link.textContent = `Archived · ${count}`;
+        link.classList.toggle('visible', count > 0);
+      });
+    }
     function renderTaskList(container) {
       if (!container) return;
-      const sorted = tasks.slice().sort((a, b) => Number(a.completed) - Number(b.completed) || a.createdAt.localeCompare(b.createdAt));
+      const sorted = activeTasks().slice().sort((a, b) => Number(a.completed) - Number(b.completed) || a.createdAt.localeCompare(b.createdAt));
       if (!sorted.length) {
         const empty = document.createElement('div');
         empty.className = 'task-empty';
-        empty.textContent = 'NO TASKS';
+        empty.textContent = 'NO ACTIVE TASKS';
         container.replaceChildren(empty);
         return;
       }
@@ -797,26 +880,56 @@
         const title = document.createElement('div');
         title.className = 'task-title';
         title.textContent = item.title;
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.className = 'task-delete';
-        remove.textContent = '×';
-        remove.setAttribute('aria-label', `Delete ${item.title}`);
-        row.append(toggle, title, remove);
+        const archive = document.createElement('button');
+        archive.type = 'button';
+        archive.className = 'task-archive';
+        archive.textContent = '⌄';
+        archive.title = 'Archive task';
+        archive.setAttribute('aria-label', `Archive ${item.title}`);
+        row.append(toggle, title, archive);
         fragment.appendChild(row);
       });
       container.replaceChildren(fragment);
     }
+    function renderArchivedTasks() {
+      const sorted = archivedTasks().slice().sort((a, b) => (b.archivedAt || '').localeCompare(a.archivedAt || ''));
+      if (!sorted.length) {
+        const empty = document.createElement('div');
+        empty.className = 'task-empty';
+        empty.textContent = 'NO ARCHIVED TASKS';
+        elements.archivedTasksList.replaceChildren(empty);
+        return;
+      }
+      const fragment = document.createDocumentFragment();
+      sorted.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'archived-task-row';
+        row.dataset.id = item.id;
+        const title = document.createElement('div');
+        title.className = 'task-title';
+        title.textContent = item.title;
+        const restore = document.createElement('button');
+        restore.type = 'button';
+        restore.className = 'task-restore';
+        restore.textContent = 'Restore';
+        restore.setAttribute('aria-label', `Restore ${item.title}`);
+        row.append(title, restore);
+        fragment.appendChild(row);
+      });
+      elements.archivedTasksList.replaceChildren(fragment);
+    }
     function renderTasks() {
       renderTaskList(elements.desktopTaskList);
       renderTaskList(elements.mobileTaskList);
+      updateArchivedLinks();
+      renderArchivedTasks();
     }
     function addTaskFromInput(input) {
       const title = normaliseTaskTitle(input.value);
       input.value = '';
       if (!title) return;
       const previous = tasks.slice();
-      tasks.push({ id: newId(), title, completed: false, createdAt: new Date().toISOString() });
+      tasks.push({ id: newId(), title, completed: false, archived: false, archivedAt: null, createdAt: new Date().toISOString() });
       if (!saveTasks()) { tasks = previous; alert('Task could not be saved. Browser storage may be unavailable or full.'); return; }
       renderTasks();
     }
@@ -826,11 +939,24 @@
       const previous = tasks.map(item => ({ ...item }));
       if (event.target.closest('.task-toggle')) {
         tasks = tasks.map(item => item.id === row.dataset.id ? { ...item, completed: !item.completed } : item);
-      } else if (event.target.closest('.task-delete')) {
-        tasks = tasks.filter(item => item.id !== row.dataset.id);
+      } else if (event.target.closest('.task-archive')) {
+        tasks = tasks.map(item => item.id === row.dataset.id ? { ...item, archived: true, archivedAt: new Date().toISOString() } : item);
       } else return;
       if (!saveTasks()) { tasks = previous; alert('Task change could not be saved.'); return; }
       renderTasks();
+    }
+    function handleArchivedTaskClick(event) {
+      const row = event.target.closest('.archived-task-row');
+      if (!row || !event.target.closest('.task-restore')) return;
+      const previous = tasks.map(item => ({ ...item }));
+      tasks = tasks.map(item => item.id === row.dataset.id ? { ...item, completed: false, archived: false, archivedAt: null } : item);
+      if (!saveTasks()) { tasks = previous; alert('Task could not be restored.'); return; }
+      renderTasks();
+      if (!archivedTasks().length) closeDialog(elements.archivedTasksDialog);
+    }
+    function openArchivedTasks() {
+      renderArchivedTasks();
+      elements.archivedTasksDialog.showModal();
     }
     function writeVerified(key, value) {
       localStorage.setItem(key, value);
@@ -900,7 +1026,12 @@
       const previous = appointments.slice();
       const previousTasks = tasks.map(item => ({ ...item }));
       appointments = imported.map(item => ({ ...item }));
-      if (importedTasks) tasks = importedTasks.map(item => ({ ...item, title: normaliseTaskTitle(item.title) })).filter(item => item.title);
+      if (importedTasks) tasks = importedTasks.map(item => ({
+        ...item,
+        title: normaliseTaskTitle(item.title),
+        archived: item.archived === true,
+        archivedAt: item.archived === true && typeof item.archivedAt === 'string' ? item.archivedAt : null
+      })).filter(item => item.title);
       if (!saveAppointments() || (importedTasks && !saveTasks())) {
         appointments = previous;
         tasks = previousTasks;
@@ -1213,6 +1344,11 @@
     });
     elements.desktopTaskList.addEventListener('click', handleTaskListClick);
     elements.mobileTaskList.addEventListener('click', handleTaskListClick);
+    elements.archivedTasksList.addEventListener('click', handleArchivedTaskClick);
+    elements.desktopArchivedLink.addEventListener('click', openArchivedTasks);
+    elements.mobileArchivedLink.addEventListener('click', openArchivedTasks);
+    elements.closeArchivedTasksButton.addEventListener('click', () => closeDialog(elements.archivedTasksDialog));
+    elements.archivedTasksDialog.addEventListener('click', event => { if (event.target === elements.archivedTasksDialog) closeDialog(elements.archivedTasksDialog); });
     elements.tasksButton.addEventListener('click', () => {
       renderTasks();
       elements.tasksDialog.showModal();
