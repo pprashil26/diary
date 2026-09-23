@@ -328,6 +328,24 @@
       border-bottom: 1px solid rgba(232, 226, 217, .72);
     }
     .archived-task-row .task-title { padding-top: 0; }
+    .archived-task-actions { display: flex; align-items: center; gap: 5px; }
+    .task-permanent-delete {
+      min-height: 24px;
+      padding: 2px 7px;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      color: var(--muted);
+      background: transparent;
+      font-size: 10px;
+      font-weight: 720;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .task-permanent-delete.armed {
+      color: var(--danger);
+      background: var(--danger-soft);
+      border-color: #efd0cd;
+    }
     #archivedTasksDialog { width: min(calc(100% - 22px), 440px); }
     #archivedTasksList { min-height: 100px; max-height: calc(100dvh - 150px); }
     .task-title {
@@ -702,7 +720,7 @@
 
   <script>
     'use strict';
-    const APP_VERSION = "V1.46";
+    const APP_VERSION = "V1.46.1";
     const APP_BUILD_DATE = "2026-09-16";
     const STORAGE_KEY = "diary.appointments.v1";
     const BACKUP_KEY = "diary.appointments.backup.v1";
@@ -763,6 +781,8 @@
     let selectedDate = todayISO();
     let appointments = loadAppointments();
     let tasks = loadTasks();
+    let armedDeleteTaskId = null;
+    let armedDeleteTimer = null;
 
     function pad(number) { return String(number).padStart(2, '0'); }
     function todayISO() {
@@ -908,12 +928,20 @@
         const title = document.createElement('div');
         title.className = 'task-title';
         title.textContent = item.title;
+        const actions = document.createElement('div');
+        actions.className = 'archived-task-actions';
         const restore = document.createElement('button');
         restore.type = 'button';
         restore.className = 'task-restore';
         restore.textContent = 'Restore';
         restore.setAttribute('aria-label', `Restore ${item.title}`);
-        row.append(title, restore);
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = `task-permanent-delete${armedDeleteTaskId === item.id ? ' armed' : ''}`;
+        remove.textContent = armedDeleteTaskId === item.id ? 'Delete permanently?' : 'Delete';
+        remove.setAttribute('aria-label', armedDeleteTaskId === item.id ? `Confirm permanent deletion of ${item.title}` : `Delete ${item.title} permanently`);
+        actions.append(restore, remove);
+        row.append(title, actions);
         fragment.appendChild(row);
       });
       elements.archivedTasksList.replaceChildren(fragment);
@@ -945,16 +973,51 @@
       if (!saveTasks()) { tasks = previous; alert('Task change could not be saved.'); return; }
       renderTasks();
     }
-    function handleArchivedTaskClick(event) {
-      const row = event.target.closest('.archived-task-row');
-      if (!row || !event.target.closest('.task-restore')) return;
+    function clearArmedDelete(render = true) {
+      if (armedDeleteTimer) clearTimeout(armedDeleteTimer);
+      armedDeleteTimer = null;
+      armedDeleteTaskId = null;
+      if (render) renderArchivedTasks();
+    }
+    function armPermanentDelete(id) {
+      if (armedDeleteTimer) clearTimeout(armedDeleteTimer);
+      armedDeleteTaskId = id;
+      renderArchivedTasks();
+      armedDeleteTimer = setTimeout(() => clearArmedDelete(true), 5000);
+    }
+    function permanentlyDeleteTask(id) {
       const previous = tasks.map(item => ({ ...item }));
-      tasks = tasks.map(item => item.id === row.dataset.id ? { ...item, completed: false, archived: false, archivedAt: null } : item);
-      if (!saveTasks()) { tasks = previous; alert('Task could not be restored.'); return; }
+      tasks = tasks.filter(item => item.id !== id);
+      if (!saveTasks()) {
+        tasks = previous;
+        alert('Task could not be permanently deleted.');
+        clearArmedDelete(false);
+        renderTasks();
+        return;
+      }
+      clearArmedDelete(false);
       renderTasks();
       if (!archivedTasks().length) closeDialog(elements.archivedTasksDialog);
     }
+    function handleArchivedTaskClick(event) {
+      const row = event.target.closest('.archived-task-row');
+      if (!row) return;
+      if (event.target.closest('.task-restore')) {
+        const previous = tasks.map(item => ({ ...item }));
+        tasks = tasks.map(item => item.id === row.dataset.id ? { ...item, completed: false, archived: false, archivedAt: null } : item);
+        if (!saveTasks()) { tasks = previous; alert('Task could not be restored.'); return; }
+        clearArmedDelete(false);
+        renderTasks();
+        if (!archivedTasks().length) closeDialog(elements.archivedTasksDialog);
+        return;
+      }
+      if (event.target.closest('.task-permanent-delete')) {
+        if (armedDeleteTaskId === row.dataset.id) permanentlyDeleteTask(row.dataset.id);
+        else armPermanentDelete(row.dataset.id);
+      }
+    }
     function openArchivedTasks() {
+      clearArmedDelete(false);
       renderArchivedTasks();
       elements.archivedTasksDialog.showModal();
     }
@@ -1347,8 +1410,10 @@
     elements.archivedTasksList.addEventListener('click', handleArchivedTaskClick);
     elements.desktopArchivedLink.addEventListener('click', openArchivedTasks);
     elements.mobileArchivedLink.addEventListener('click', openArchivedTasks);
-    elements.closeArchivedTasksButton.addEventListener('click', () => closeDialog(elements.archivedTasksDialog));
-    elements.archivedTasksDialog.addEventListener('click', event => { if (event.target === elements.archivedTasksDialog) closeDialog(elements.archivedTasksDialog); });
+    elements.closeArchivedTasksButton.addEventListener('click', () => { clearArmedDelete(false); closeDialog(elements.archivedTasksDialog); });
+    elements.archivedTasksDialog.addEventListener('click', event => {
+      if (event.target === elements.archivedTasksDialog) { clearArmedDelete(false); closeDialog(elements.archivedTasksDialog); }
+    });
     elements.tasksButton.addEventListener('click', () => {
       renderTasks();
       elements.tasksDialog.showModal();
