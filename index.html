@@ -763,6 +763,73 @@
       dialog { max-height: calc(100dvh - 10px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
       .calendar-dialog-head { min-height: 44px; }
     }
+
+    /* V1.49 Today awareness */
+    .viewing-today .date-sub {
+      color: var(--accent-deep);
+      font-weight: 780;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .viewing-today .slot.past-slot .time { color: #98a4ae; }
+    .viewing-today .slot.past-slot .slot-body { background: #f8fafb; }
+    .viewing-today .slot.past-slot:not(.current-slot) { opacity: .72; }
+    .viewing-today .slot.past-slot .appointment { opacity: .72; }
+    .viewing-today .slot.current-slot {
+      z-index: 2;
+      overflow: visible;
+    }
+    .viewing-today .slot.current-slot .time {
+      color: var(--accent-deep);
+      font-weight: 800;
+    }
+    .viewing-today .slot.current-slot .slot-body {
+      position: relative;
+      background: #f1f6fa;
+    }
+    .viewing-today .slot.current-slot .slot-body::before {
+      content: '';
+      position: absolute;
+      z-index: 4;
+      left: -1px;
+      right: 0;
+      top: 50%;
+      height: 2px;
+      border-radius: 999px;
+      background: #295b85;
+      pointer-events: none;
+    }
+    .viewing-today .slot.current-slot .slot-body::after {
+      content: 'NOW';
+      position: absolute;
+      z-index: 5;
+      right: 6px;
+      top: calc(50% - 8px);
+      padding: 1px 5px;
+      border-radius: 999px;
+      color: #fff;
+      background: var(--accent-deep);
+      font-size: 8px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      line-height: 14px;
+      pointer-events: none;
+    }
+    .viewing-today .appointment.current-appointment {
+      position: relative;
+      z-index: 3;
+      border-color: #789bb6;
+      border-left-color: var(--accent-deep);
+      background: #dfeaf3;
+      box-shadow: 0 2px 8px rgba(16, 42, 67, .18);
+      opacity: 1;
+    }
+    @media (min-width: 761px) {
+      .viewing-today .slot.current-slot .slot-body::after { right: 3px; top: calc(50% - 7px); line-height: 12px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .appointment, .calendar-day { transition: none; }
+    }
   </style>
 </head>
 <body>
@@ -898,7 +965,7 @@
 
   <script>
     'use strict';
-    const APP_VERSION = "V1.48";
+    const APP_VERSION = "V1.49";
     const APP_BUILD_DATE = "2026-10-23";
     const STORAGE_KEY = "diary.appointments.v1";
     const BACKUP_KEY = "diary.appointments.backup.v1";
@@ -1306,6 +1373,10 @@
     }
     function render() {
       formatSelectedDate();
+      const viewingToday = selectedDate === todayISO();
+      document.body.classList.toggle('viewing-today', viewingToday);
+      const now = new Date();
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
       const fragment = document.createDocumentFragment();
       const dayItems = appointments
         .filter(item => item.date === selectedDate)
@@ -1313,8 +1384,11 @@
       for (let total = 0; total < 24 * 60; total += 30) {
         const time = minutesToTime(total);
         const row = document.createElement('div');
-        row.className = `slot${total % 60 === 0 ? ' hour' : ''}`;
+        const isPastSlot = viewingToday && total + 30 <= nowMinutes;
+        const isCurrentSlot = viewingToday && total <= nowMinutes && nowMinutes < total + 30;
+        row.className = `slot${total % 60 === 0 ? ' hour' : ''}${isPastSlot ? ' past-slot' : ''}${isCurrentSlot ? ' current-slot' : ''}`;
         row.dataset.time = time;
+        if (isCurrentSlot) row.setAttribute('aria-current', 'time');
         row.setAttribute('role', 'button');
         row.setAttribute('tabindex', '0');
         row.setAttribute('aria-label', `Add appointment at ${time}`);
@@ -1327,8 +1401,10 @@
           const startsHere = timeToMinutes(item.startTime) >= total && timeToMinutes(item.startTime) < total + 30;
           const button = document.createElement('button');
           button.type = 'button';
-          button.className = `appointment${startsHere ? '' : ' continuation'}`;
+          const isCurrentAppointment = viewingToday && timeToMinutes(item.startTime) <= nowMinutes && nowMinutes < timeToMinutes(item.endTime);
+          button.className = `appointment${startsHere ? '' : ' continuation'}${isCurrentAppointment ? ' current-appointment' : ''}`;
           button.dataset.id = item.id;
+          if (isCurrentAppointment) button.setAttribute('aria-current', 'time');
           button.setAttribute('aria-label', `Edit ${item.title}, ${item.startTime} to ${item.endTime}`);
           button.innerHTML = `<span class="appt-title">${escapeText(startsHere ? item.title : `↳ ${item.title}`)}</span><span class="appt-meta">${escapeText(item.startTime)}–${escapeText(item.endTime)}</span>`;
           body.appendChild(button);
@@ -1631,6 +1707,14 @@
     renderTasks();
     scrollCalendarToSelected(elements.desktopCalendarScroll);
     requestAnimationFrame(scrollToDayStart);
+    function refreshTodayAwareness() {
+      if (selectedDate === todayISO()) render();
+    }
+    const minuteDelay = 60000 - (Date.now() % 60000) + 25;
+    setTimeout(() => {
+      refreshTodayAwareness();
+      setInterval(refreshTodayAwareness, 60000);
+    }, minuteDelay);
   </script>
 </body>
 </html>
