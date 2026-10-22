@@ -818,6 +818,44 @@
     @media (prefers-reduced-motion: reduce) {
       .appointment, .calendar-day { transition: none; }
     }
+
+    /* V1.50 Task editing and notes */
+    .task-row { grid-template-columns: 20px minmax(0, 1fr) 16px 22px; }
+    .task-title-button {
+      display: block;
+      width: 100%;
+      min-width: 0;
+      padding: 2px 0 0;
+      border: 0;
+      color: var(--text);
+      background: transparent;
+      overflow-wrap: anywhere;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 680;
+      line-height: 1.28;
+      letter-spacing: .015em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .task-row.completed .task-title-button { color: #61707c; text-decoration: line-through; text-decoration-color: #91a0ab; }
+    .task-note-indicator {
+      width: 16px;
+      height: 20px;
+      padding: 0;
+      border: 0;
+      color: #708291;
+      background: transparent;
+      font-size: 11px;
+      line-height: 20px;
+      cursor: pointer;
+    }
+    .task-title-button:hover, .task-title-button:focus-visible, .task-note-indicator:hover, .task-note-indicator:focus-visible { color: var(--accent-deep); }
+    .task-title-button:focus-visible, .task-note-indicator:focus-visible { outline: 2px solid #5d8db5; outline-offset: 2px; border-radius: 3px; }
+    .archived-task-main { display: grid; grid-template-columns: minmax(0, 1fr) 16px; align-items: center; gap: 3px; min-width: 0; }
+    .archived-task-main .task-title-button { padding-top: 0; }
+    #taskEditDialog { width: min(calc(100% - 22px), 440px); }
+    #taskEditNotes { min-height: 110px; }
   </style>
 </head>
 <body>
@@ -920,6 +958,26 @@
       <div id="archivedTasksList" class="task-list" aria-live="polite"></div>
     </div>
   </dialog>
+  <dialog id="taskEditDialog" aria-labelledby="taskEditDialogTitle">
+    <form id="taskEditForm" class="dialog-inner" novalidate>
+      <h2 id="taskEditDialogTitle" class="dialog-title">Edit task</h2>
+      <input id="taskEditId" type="hidden">
+      <label class="field">
+        <span class="field-label">Title</span>
+        <input id="taskEditTitle" type="text" maxlength="160" autocomplete="off" required>
+      </label>
+      <label class="field">
+        <span class="field-label">Notes (optional)</span>
+        <textarea id="taskEditNotes" maxlength="1000"></textarea>
+      </label>
+      <div id="taskEditError" class="error" role="alert"></div>
+      <div class="dialog-actions">
+        <span class="spacer"></span>
+        <button id="taskEditCancel" class="text-btn" type="button">Cancel</button>
+        <button class="primary-btn" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
   <dialog id="calendarDialog" aria-labelledby="calendarDialogTitle">
     <div class="calendar-dialog-inner">
       <div class="calendar-dialog-head">
@@ -937,7 +995,7 @@
       <h2 id="aboutDialogTitle" class="dialog-title">Diary</h2>
       <div class="about-copy">
         <p><strong>A simple local-first appointment diary.</strong></p>
-        <p>Tap any 30-minute slot to add an appointment. Tap an appointment to edit or delete it. Use the minimal Tasks panel as a quick uppercase scratchpad, and Calendar to jump to another date; yellow dates contain appointments. Your data stays in this browser on this device.</p>
+        <p>Tap any 30-minute slot to add an appointment. Tap an appointment to edit or delete it. Use the compact Tasks panel to capture, edit and add optional notes to tasks, and Calendar to jump to another date; yellow dates contain appointments. Your data stays in this browser on this device.</p>
         <p id="storageStatus" class="version">Automatic backup is active.</p>
         <p class="version"><strong id="versionText"></strong><br>Build date: <span id="buildDateText"></span></p>
       </div>
@@ -953,7 +1011,7 @@
 
   <script>
     'use strict';
-    const APP_VERSION = "V1.49.1";
+    const APP_VERSION = "V1.50";
     const APP_BUILD_DATE = "2026-10-23";
     const STORAGE_KEY = "diary.appointments.v1";
     const BACKUP_KEY = "diary.appointments.backup.v1";
@@ -1008,7 +1066,14 @@
       mobileArchivedLink: document.getElementById('mobileArchivedLink'),
       archivedTasksDialog: document.getElementById('archivedTasksDialog'),
       archivedTasksList: document.getElementById('archivedTasksList'),
-      closeArchivedTasksButton: document.getElementById('closeArchivedTasksButton')
+      closeArchivedTasksButton: document.getElementById('closeArchivedTasksButton'),
+      taskEditDialog: document.getElementById('taskEditDialog'),
+      taskEditForm: document.getElementById('taskEditForm'),
+      taskEditId: document.getElementById('taskEditId'),
+      taskEditTitle: document.getElementById('taskEditTitle'),
+      taskEditNotes: document.getElementById('taskEditNotes'),
+      taskEditError: document.getElementById('taskEditError'),
+      taskEditCancel: document.getElementById('taskEditCancel')
     };
 
     let selectedDate = todayISO();
@@ -1058,6 +1123,7 @@
     function isValidTask(item) {
       return item && typeof item.id === 'string' && typeof item.title === 'string' &&
         typeof item.completed === 'boolean' && typeof item.createdAt === 'string' &&
+        (item.notes === undefined || typeof item.notes === 'string') &&
         (item.archived === undefined || typeof item.archived === 'boolean') &&
         (item.archivedAt === undefined || item.archivedAt === null || typeof item.archivedAt === 'string');
     }
@@ -1068,7 +1134,8 @@
         if (!Array.isArray(value) || !value.every(isValidTask)) return null;
         return value.map(item => ({
           ...item,
-          title: item.title.trim().toUpperCase(),
+          title: normaliseTaskTitle(item.title),
+          notes: typeof item.notes === 'string' ? item.notes.slice(0, 1000) : '',
           archived: item.archived === true,
           archivedAt: item.archived === true && typeof item.archivedAt === 'string' ? item.archivedAt : null
         })).filter(item => item.title);
@@ -1130,16 +1197,25 @@
         toggle.className = 'task-toggle';
         toggle.textContent = item.completed ? '✓' : '○';
         toggle.setAttribute('aria-label', `${item.completed ? 'Mark active' : 'Complete'} ${item.title}`);
-        const title = document.createElement('div');
-        title.className = 'task-title';
+        const title = document.createElement('button');
+        title.type = 'button';
+        title.className = 'task-title-button';
         title.textContent = item.title;
+        title.setAttribute('aria-label', `Edit ${item.title}`);
+        const note = document.createElement('button');
+        note.type = 'button';
+        note.className = 'task-note-indicator';
+        note.textContent = item.notes ? '▪' : '';
+        note.hidden = !item.notes;
+        note.title = 'Task has notes';
+        note.setAttribute('aria-label', `Edit notes for ${item.title}`);
         const archive = document.createElement('button');
         archive.type = 'button';
         archive.className = 'task-archive';
         archive.textContent = '';
         archive.title = 'Archive task';
         archive.setAttribute('aria-label', `Archive ${item.title}`);
-        row.append(toggle, title, archive);
+        row.append(toggle, title, note, archive);
         fragment.appendChild(row);
       });
       container.replaceChildren(fragment);
@@ -1158,9 +1234,21 @@
         const row = document.createElement('div');
         row.className = 'archived-task-row';
         row.dataset.id = item.id;
-        const title = document.createElement('div');
-        title.className = 'task-title';
+        const main = document.createElement('div');
+        main.className = 'archived-task-main';
+        const title = document.createElement('button');
+        title.type = 'button';
+        title.className = 'task-title-button';
         title.textContent = item.title;
+        title.setAttribute('aria-label', `Edit ${item.title}`);
+        const note = document.createElement('button');
+        note.type = 'button';
+        note.className = 'task-note-indicator';
+        note.textContent = item.notes ? '▪' : '';
+        note.hidden = !item.notes;
+        note.title = 'Task has notes';
+        note.setAttribute('aria-label', `Edit notes for ${item.title}`);
+        main.append(title, note);
         const actions = document.createElement('div');
         actions.className = 'archived-task-actions';
         const restore = document.createElement('button');
@@ -1174,7 +1262,7 @@
         remove.textContent = armedDeleteTaskId === item.id ? 'Delete permanently?' : 'Delete';
         remove.setAttribute('aria-label', armedDeleteTaskId === item.id ? `Confirm permanent deletion of ${item.title}` : `Delete ${item.title} permanently`);
         actions.append(restore, remove);
-        row.append(title, actions);
+        row.append(main, actions);
         fragment.appendChild(row);
       });
       elements.archivedTasksList.replaceChildren(fragment);
@@ -1190,13 +1278,24 @@
       input.value = '';
       if (!title) return;
       const previous = tasks.slice();
-      tasks.push({ id: newId(), title, completed: false, archived: false, archivedAt: null, createdAt: new Date().toISOString() });
+      tasks.push({ id: newId(), title, notes: '', completed: false, archived: false, archivedAt: null, createdAt: new Date().toISOString() });
       if (!saveTasks()) { tasks = previous; alert('Task could not be saved. Browser storage may be unavailable or full.'); return; }
       renderTasks();
+    }
+    function openTaskEditor(id) {
+      const item = tasks.find(task => task.id === id);
+      if (!item) return;
+      elements.taskEditId.value = item.id;
+      elements.taskEditTitle.value = item.title;
+      elements.taskEditNotes.value = item.notes || '';
+      elements.taskEditError.textContent = '';
+      elements.taskEditDialog.showModal();
+      requestAnimationFrame(() => elements.taskEditTitle.focus());
     }
     function handleTaskListClick(event) {
       const row = event.target.closest('.task-row');
       if (!row) return;
+      if (event.target.closest('.task-title-button, .task-note-indicator')) { openTaskEditor(row.dataset.id); return; }
       const previous = tasks.map(item => ({ ...item }));
       if (event.target.closest('.task-toggle')) {
         tasks = tasks.map(item => item.id === row.dataset.id ? { ...item, completed: !item.completed } : item);
@@ -1235,6 +1334,7 @@
     function handleArchivedTaskClick(event) {
       const row = event.target.closest('.archived-task-row');
       if (!row) return;
+      if (event.target.closest('.task-title-button, .task-note-indicator')) { openTaskEditor(row.dataset.id); return; }
       if (event.target.closest('.task-restore')) {
         const previous = tasks.map(item => ({ ...item }));
         tasks = tasks.map(item => item.id === row.dataset.id ? { ...item, completed: false, archived: false, archivedAt: null } : item);
@@ -1325,6 +1425,7 @@
       if (importedTasks) tasks = importedTasks.map(item => ({
         ...item,
         title: normaliseTaskTitle(item.title),
+        notes: typeof item.notes === 'string' ? item.notes.slice(0, 1000) : '',
         archived: item.archived === true,
         archivedAt: item.archived === true && typeof item.archivedAt === 'string' ? item.archivedAt : null
       })).filter(item => item.title);
@@ -1649,6 +1750,25 @@
     });
     elements.desktopTaskList.addEventListener('click', handleTaskListClick);
     elements.mobileTaskList.addEventListener('click', handleTaskListClick);
+    elements.taskEditTitle.addEventListener('input', () => {
+      const start = elements.taskEditTitle.selectionStart;
+      elements.taskEditTitle.value = elements.taskEditTitle.value.toUpperCase();
+      if (start !== null) elements.taskEditTitle.setSelectionRange(start, start);
+    });
+    elements.taskEditForm.addEventListener('submit', event => {
+      event.preventDefault();
+      const id = elements.taskEditId.value;
+      const title = normaliseTaskTitle(elements.taskEditTitle.value);
+      const notes = elements.taskEditNotes.value.trim().slice(0, 1000);
+      if (!title) { elements.taskEditError.textContent = 'Please enter a title.'; return; }
+      const previous = tasks.map(item => ({ ...item }));
+      tasks = tasks.map(item => item.id === id ? { ...item, title, notes } : item);
+      if (!saveTasks()) { tasks = previous; elements.taskEditError.textContent = 'Task could not be saved. Browser storage may be unavailable or full.'; return; }
+      closeDialog(elements.taskEditDialog);
+      renderTasks();
+    });
+    elements.taskEditCancel.addEventListener('click', () => closeDialog(elements.taskEditDialog));
+    elements.taskEditDialog.addEventListener('click', event => { if (event.target === elements.taskEditDialog) closeDialog(elements.taskEditDialog); });
     elements.archivedTasksList.addEventListener('click', handleArchivedTaskClick);
     elements.desktopArchivedLink.addEventListener('click', openArchivedTasks);
     elements.mobileArchivedLink.addEventListener('click', openArchivedTasks);
