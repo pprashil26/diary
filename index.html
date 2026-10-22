@@ -668,6 +668,101 @@
       body { min-height: 100vh; min-height: 100dvh; }
       .topbar { padding-top: calc(5px + env(safe-area-inset-top)); }
     }
+
+    /* V1.48 Daily workflow polish */
+    .task-archive {
+      position: relative;
+      opacity: .48;
+      color: #64798a;
+    }
+    .task-archive::before {
+      content: '';
+      position: absolute;
+      left: 5px;
+      top: 7px;
+      width: 12px;
+      height: 8px;
+      border: 1.5px solid currentColor;
+      border-top: 0;
+      border-radius: 0 0 2px 2px;
+    }
+    .task-archive::after {
+      content: '↓';
+      position: absolute;
+      left: 0;
+      top: -3px;
+      width: 22px;
+      color: currentColor;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 20px;
+      text-align: center;
+    }
+    .task-row:hover .task-archive,
+    .task-archive:hover,
+    .task-archive:focus-visible { opacity: 1; color: var(--accent-deep); }
+    .task-row.completed { opacity: .54; }
+    .task-row.completed .task-title { color: #61707c; text-decoration-color: #91a0ab; }
+    .task-row.completed .task-toggle { color: #4f7560; font-weight: 800; }
+    .appointment {
+      border-color: #b7ccdc;
+      border-left-width: 4px;
+      border-left-color: #295b85;
+      transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease;
+    }
+    .appointment:hover, .appointment:focus-visible {
+      border-color: #91adc2;
+      border-left-color: var(--accent-deep);
+      background: #e7f0f7;
+      box-shadow: 0 2px 7px rgba(16, 42, 67, .13);
+    }
+    .appointment.continuation {
+      border-left-width: 2px;
+      background: #f3f7fa;
+      opacity: .78;
+      box-shadow: none;
+    }
+    .appointment.continuation:hover, .appointment.continuation:focus-visible { opacity: .94; }
+    .calendar-weekdays { min-height: 30px; letter-spacing: .015em; }
+    .calendar-month-marker { border-right: 1px solid #d3dfe8; letter-spacing: .02em; }
+    .calendar-day { transition: background-color .1s ease, color .1s ease, box-shadow .1s ease; }
+    .calendar-day:not(.selected):hover, .calendar-day:not(.selected):focus-visible { background: #edf4f9; color: var(--accent-deep); }
+    .calendar-day.has-entry:not(.selected) { background: #fff0ad; box-shadow: inset 0 0 0 1px rgba(196, 151, 28, .12); }
+    .calendar-day.today::after { right: 50%; bottom: 3px; width: 5px; height: 5px; transform: translateX(50%); }
+    .calendar-day.selected { box-shadow: inset 0 0 0 2px #0b2138; }
+    .calendar-day.selected.today::after { background: #fff; }
+    dialog { border-radius: 16px; }
+    .calendar-dialog-head {
+      min-height: 50px;
+      padding: 8px 12px;
+      box-shadow: 0 1px 0 var(--line);
+    }
+    .calendar-dialog-title, .dialog-title { font-weight: 760; letter-spacing: -.01em; }
+    .calendar-dialog-title { font-size: 17px; }
+    .dialog-inner { padding: 18px; }
+    .field { margin-bottom: 13px; }
+    .primary-btn, .danger-btn, .text-btn { min-height: 40px; }
+    .calendar-dialog-head .text-btn { min-height: 34px; padding: 6px 9px; }
+    .desktop-tasks, main, .desktop-calendar {
+      border-color: #d7e0e7;
+      box-shadow: 0 5px 18px rgba(16, 42, 67, .055);
+    }
+    .desktop-tasks, .desktop-calendar { scrollbar-color: #b7c5d0 transparent; scrollbar-width: thin; }
+    .desktop-tasks::-webkit-scrollbar, .desktop-calendar::-webkit-scrollbar, .task-list::-webkit-scrollbar, dialog::-webkit-scrollbar { width: 8px; height: 8px; }
+    .desktop-tasks::-webkit-scrollbar-thumb, .desktop-calendar::-webkit-scrollbar-thumb, .task-list::-webkit-scrollbar-thumb, dialog::-webkit-scrollbar-thumb { background: #b7c5d0; border: 2px solid transparent; border-radius: 999px; background-clip: padding-box; }
+    @media (max-width: 430px) {
+      .day-nav { grid-template-columns: 34px minmax(0, 1fr) 34px; column-gap: 3px; }
+      .icon-btn { width: 34px; }
+      .header-action { padding-left: 5px; padding-right: 5px; font-size: 11px; }
+      #aboutButton { right: 36px; }
+      .dialog-inner { padding: 15px; }
+      .archived-task-row { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+      .archived-task-actions { justify-content: flex-end; }
+    }
+    @media (max-height: 560px) {
+      dialog { max-height: calc(100dvh - 10px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+      .calendar-dialog-head { min-height: 44px; }
+    }
   </style>
 </head>
 <body>
@@ -803,7 +898,7 @@
 
   <script>
     'use strict';
-    const APP_VERSION = "V1.47";
+    const APP_VERSION = "V1.48";
     const APP_BUILD_DATE = "2026-10-23";
     const STORAGE_KEY = "diary.appointments.v1";
     const BACKUP_KEY = "diary.appointments.backup.v1";
@@ -986,7 +1081,7 @@
         const archive = document.createElement('button');
         archive.type = 'button';
         archive.className = 'task-archive';
-        archive.textContent = '⌄';
+        archive.textContent = '';
         archive.title = 'Archive task';
         archive.setAttribute('aria-label', `Archive ${item.title}`);
         row.append(toggle, title, archive);
