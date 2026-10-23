@@ -941,6 +941,18 @@
     #taskDeleteConfirmDialog { width: min(calc(100% - 22px), 420px); }
     .confirm-copy { margin: -2px 0 14px; color: var(--muted); font-size: 14px; line-height: 1.5; }
     .confirm-task-title { display: block; margin-top: 8px; color: var(--text); font-weight: 760; overflow-wrap: anywhere; }
+
+    /* V1.51.4 Started task state */
+    .task-row { grid-template-columns: 20px minmax(0, 1fr) 16px auto; }
+    .desktop-tasks .task-row { grid-template-columns: 20px minmax(0, 1fr) 16px auto; }
+    .task-started-pill {
+      align-self: center; min-width: 0; margin-top: 1px; padding: 1px 5px; border-radius: 999px;
+      color: #fff; background: #365f82; font-size: 8px; font-weight: 800; letter-spacing: .07em;
+      line-height: 14px; white-space: nowrap; pointer-events: none;
+    }
+    .task-row.completed .task-started-pill { display: none; }
+    .task-edit-started-btn { min-height: 38px; padding: 8px 12px; border: 1px solid #cad7e1; border-radius: 10px; color: var(--accent-deep); background: #f4f7fa; font-weight: 760; cursor: pointer; }
+    .task-edit-started-btn.is-started { color: #fff; background: #365f82; border-color: #365f82; }
   </style>
 </head>
 <body lang="en" translate="no" class="notranslate">
@@ -1070,6 +1082,9 @@
         <textarea id="taskEditNotes" maxlength="1000"></textarea>
       </label>
       <div id="taskEditError" class="error" role="alert"></div>
+      <div style="margin:4px 0 12px">
+        <button id="taskEditStarted" class="task-edit-started-btn" type="button">Mark as started</button>
+      </div>
       <div class="task-edit-danger-zone">
         <button id="taskEditArchive" class="task-edit-archive-btn" type="button">Archive task</button>
         <button id="taskEditDelete" class="danger-btn" type="button">Delete task</button>
@@ -1109,7 +1124,7 @@
       <h2 id="aboutDialogTitle" class="dialog-title">Diary</h2>
       <div class="about-copy">
         <p><strong>A simple local-first appointment diary.</strong></p>
-        <p>Tap any 30-minute slot to add an appointment. Tap an appointment to edit or delete it. Use the compact Tasks panel to organise Work, Home and Personal tasks, create tasks directly from each section, edit titles, add optional notes, archive, restore or safely delete tasks, and filter sections, and Calendar to jump to another date; yellow dates contain appointments. Your data stays in this browser on this device.</p>
+        <p>Tap any 30-minute slot to add an appointment. Tap an appointment to edit or delete it. Use the compact Tasks panel to organise Work, Home and Personal tasks, create tasks directly from each section, edit titles, mark tasks as started, add optional notes, archive, restore or safely delete tasks, and filter sections, and Calendar to jump to another date; yellow dates contain appointments. Your data stays in this browser on this device.</p>
         <p id="storageStatus" class="version">Automatic backup is active.</p>
         <p class="version"><strong id="versionText"></strong><br>Build date: <span id="buildDateText"></span></p>
       </div>
@@ -1129,7 +1144,7 @@
     document.documentElement.translate = false;
     document.body.lang = 'en';
     document.body.translate = false;
-    const APP_VERSION = "V1.51.3";
+    const APP_VERSION = "V1.51.4";
     const APP_BUILD_DATE = "2026-10-23";
     const STORAGE_KEY = "diary.appointments.v1";
     const BACKUP_KEY = "diary.appointments.backup.v1";
@@ -1191,6 +1206,7 @@
       taskEditNotes: document.getElementById('taskEditNotes'),
       taskEditError: document.getElementById('taskEditError'),
       taskEditCancel: document.getElementById('taskEditCancel'),
+      taskEditStarted: document.getElementById('taskEditStarted'),
       taskEditArchive: document.getElementById('taskEditArchive'),
       taskEditDelete: document.getElementById('taskEditDelete'),
       taskDeleteConfirmDialog: document.getElementById('taskDeleteConfirmDialog'),
@@ -1248,6 +1264,7 @@
       return item && typeof item.id === 'string' && typeof item.title === 'string' &&
         typeof item.completed === 'boolean' && typeof item.createdAt === 'string' &&
         (item.notes === undefined || typeof item.notes === 'string') &&
+        (item.started === undefined || typeof item.started === 'boolean') &&
         (item.type === undefined || ['work', 'home', 'personal'].includes(item.type)) &&
         (item.archived === undefined || typeof item.archived === 'boolean') &&
         (item.archivedAt === undefined || item.archivedAt === null || typeof item.archivedAt === 'string');
@@ -1261,6 +1278,7 @@
           ...item,
           title: normaliseTaskTitle(item.title),
           notes: typeof item.notes === 'string' ? item.notes.slice(0, 1000) : '',
+          started: item.started === true,
           type: ['work', 'home', 'personal'].includes(item.type) ? item.type : 'personal',
           archived: item.archived === true,
           archivedAt: item.archived === true && typeof item.archivedAt === 'string' ? item.archivedAt : null
@@ -1319,7 +1337,10 @@
       const note = document.createElement('button');
       note.type = 'button'; note.className = 'task-note-indicator'; note.textContent = item.notes ? '▪' : ''; note.hidden = !item.notes;
       note.title = 'Task has notes'; note.setAttribute('aria-label', `Edit notes for ${item.title}`);
-      row.append(toggle, title, note);
+      if (item.started && !item.completed) {
+        const started = document.createElement('span'); started.className = 'task-started-pill'; started.textContent = 'STARTED';
+        started.setAttribute('aria-label', 'Started'); row.append(toggle, title, note, started);
+      } else row.append(toggle, title, note);
       return row;
     }
     function renderTaskList(container) {
@@ -1393,7 +1414,7 @@
       const type = ['work', 'home', 'personal'].includes(typeValue) ? typeValue : 'personal';
       if (!title) return false;
       const previous = tasks.map(item => ({ ...item }));
-      tasks.push({ id: newId(), title, notes: '', type, completed: false, archived: false, archivedAt: null, createdAt: new Date().toISOString() });
+      tasks.push({ id: newId(), title, notes: '', type, started: false, completed: false, archived: false, archivedAt: null, createdAt: new Date().toISOString() });
       if (!saveTasks()) { tasks = previous; return false; }
       return true;
     }
@@ -1406,6 +1427,8 @@
       elements.taskEditNotes.value = item.notes || '';
       elements.taskEditError.textContent = '';
       elements.taskEditArchive.textContent = item.archived ? 'Restore task' : 'Archive task';
+      elements.taskEditStarted.textContent = item.started ? 'Mark as not started' : 'Mark as started';
+      elements.taskEditStarted.classList.toggle('is-started', item.started === true);
       elements.taskEditDialog.showModal();
       requestAnimationFrame(() => elements.taskEditTitle.focus());
     }
@@ -1523,6 +1546,7 @@
         ...item,
         title: normaliseTaskTitle(item.title),
         notes: typeof item.notes === 'string' ? item.notes.slice(0, 1000) : '',
+        started: item.started === true,
         type: ['work', 'home', 'personal'].includes(item.type) ? item.type : 'personal',
         archived: item.archived === true,
         archivedAt: item.archived === true && typeof item.archivedAt === 'string' ? item.archivedAt : null
@@ -1916,6 +1940,18 @@
       tasks = tasks.map(item => item.id === id ? { ...item, title, notes, type } : item);
       if (!saveTasks()) { tasks = previous; elements.taskEditError.textContent = 'Task could not be saved. Browser storage may be unavailable or full.'; return; }
       closeDialog(elements.taskEditDialog);
+      renderTasks();
+    });
+    elements.taskEditStarted.addEventListener('click', () => {
+      const id = elements.taskEditId.value;
+      const item = tasks.find(task => task.id === id);
+      if (!item) return;
+      const previous = tasks.map(task => ({ ...task }));
+      const nextStarted = !item.started;
+      tasks = tasks.map(task => task.id === id ? { ...task, started: nextStarted } : task);
+      if (!saveTasks()) { tasks = previous; elements.taskEditError.textContent = 'Started state could not be saved.'; return; }
+      elements.taskEditStarted.textContent = nextStarted ? 'Mark as not started' : 'Mark as started';
+      elements.taskEditStarted.classList.toggle('is-started', nextStarted);
       renderTasks();
     });
     elements.taskEditArchive.addEventListener('click', () => {
