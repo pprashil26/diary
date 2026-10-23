@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="en-AU" translate="no">
+<html lang="en" translate="no" class="notranslate">
 <head>
   <meta charset="utf-8">
-  <meta http-equiv="content-language" content="en-AU">
+  <meta http-equiv="content-language" content="en">
   <meta name="google" content="notranslate">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -860,8 +860,8 @@
     #taskEditNotes { min-height: 110px; }
   </style>
 </head>
-<body>
-  <div class="app">
+<body lang="en" translate="no" class="notranslate">
+  <div class="app notranslate" lang="en" translate="no">
     <header class="topbar">
       <div class="day-nav">
         <button id="previousDay" class="icon-btn" type="button" aria-label="Previous day">‹</button>
@@ -1013,7 +1013,11 @@
 
   <script>
     'use strict';
-    const APP_VERSION = "V1.50.1";
+    document.documentElement.lang = 'en';
+    document.documentElement.translate = false;
+    document.body.lang = 'en';
+    document.body.translate = false;
+    const APP_VERSION = "V1.50.2";
     const APP_BUILD_DATE = "2026-10-23";
     const STORAGE_KEY = "diary.appointments.v1";
     const BACKUP_KEY = "diary.appointments.backup.v1";
