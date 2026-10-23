@@ -960,6 +960,10 @@
     .task-row.completed .task-started-arrow { display: none; }
     .task-edit-started-btn { min-height: 38px; padding: 8px 12px; border: 1px solid #cad7e1; border-radius: 10px; color: var(--accent-deep); background: #f4f7fa; font-weight: 760; cursor: pointer; }
     .task-edit-started-btn.is-started { color: #fff; background: #365f82; border-color: #365f82; }
+
+    /* V1.51.5 Current timeblock task action */
+    .task-edit-current-btn { min-height: 38px; padding: 8px 12px; border: 1px solid #cad7e1; border-radius: 10px; color: var(--accent-deep); background: var(--accent-soft); font-weight: 760; cursor: pointer; }
+    .task-edit-current-btn:hover, .task-edit-current-btn:focus-visible { background: #dfeaf3; outline: 2px solid #5d8db5; outline-offset: 2px; }
   </style>
 </head>
 <body lang="en" translate="no" class="notranslate">
@@ -1089,8 +1093,9 @@
         <textarea id="taskEditNotes" maxlength="1000"></textarea>
       </label>
       <div id="taskEditError" class="error" role="alert"></div>
-      <div style="margin:4px 0 12px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px">
         <button id="taskEditStarted" class="task-edit-started-btn" type="button">Mark as started</button>
+        <button id="taskEditCurrentTimeblock" class="task-edit-current-btn" type="button">Add to current timeblock</button>
       </div>
       <div class="task-edit-danger-zone">
         <button id="taskEditArchive" class="task-edit-archive-btn" type="button">Archive task</button>
@@ -1131,7 +1136,7 @@
       <h2 id="aboutDialogTitle" class="dialog-title">Diary</h2>
       <div class="about-copy">
         <p><strong>A simple local-first appointment diary.</strong></p>
-        <p>Tap any 30-minute slot to add an appointment. Tap an appointment to edit or delete it. Use the compact Tasks panel to organise Work, Home and Personal tasks, create tasks directly from each section, edit titles, mark tasks as started, add optional notes, archive, restore or safely delete tasks, and filter sections, and Calendar to jump to another date; yellow dates contain appointments. Your data stays in this browser on this device.</p>
+        <p>Tap any 30-minute slot to add an appointment. Tap an appointment to edit or delete it. Use the compact Tasks panel to organise Work, Home and Personal tasks, create tasks directly from each section, edit titles, mark tasks as started, add active tasks to the current timeblock, add optional notes, archive, restore or safely delete tasks, and filter sections, and Calendar to jump to another date; yellow dates contain appointments. Your data stays in this browser on this device.</p>
         <p id="storageStatus" class="version">Automatic backup is active.</p>
         <p class="version"><strong id="versionText"></strong><br>Build date: <span id="buildDateText"></span></p>
       </div>
@@ -1151,7 +1156,7 @@
     document.documentElement.translate = false;
     document.body.lang = 'en';
     document.body.translate = false;
-    const APP_VERSION = "V1.51.4.1";
+    const APP_VERSION = "V1.51.5";
     const APP_BUILD_DATE = "2026-10-23";
     const STORAGE_KEY = "diary.appointments.v1";
     const BACKUP_KEY = "diary.appointments.backup.v1";
@@ -1214,6 +1219,7 @@
       taskEditError: document.getElementById('taskEditError'),
       taskEditCancel: document.getElementById('taskEditCancel'),
       taskEditStarted: document.getElementById('taskEditStarted'),
+      taskEditCurrentTimeblock: document.getElementById('taskEditCurrentTimeblock'),
       taskEditArchive: document.getElementById('taskEditArchive'),
       taskEditDelete: document.getElementById('taskEditDelete'),
       taskDeleteConfirmDialog: document.getElementById('taskDeleteConfirmDialog'),
@@ -1439,6 +1445,7 @@
       elements.taskEditArchive.textContent = item.archived ? 'Restore task' : 'Archive task';
       elements.taskEditStarted.textContent = item.started ? 'Mark as not started' : 'Mark as started';
       elements.taskEditStarted.classList.toggle('is-started', item.started === true);
+      elements.taskEditCurrentTimeblock.hidden = selectedDate !== todayISO() || item.archived || item.completed;
       elements.taskEditDialog.showModal();
       requestAnimationFrame(() => elements.taskEditTitle.focus());
     }
@@ -1951,6 +1958,38 @@
       if (!saveTasks()) { tasks = previous; elements.taskEditError.textContent = 'Task could not be saved. Browser storage may be unavailable or full.'; return; }
       closeDialog(elements.taskEditDialog);
       renderTasks();
+    });
+    elements.taskEditCurrentTimeblock.addEventListener('click', () => {
+      const id = elements.taskEditId.value;
+      const item = tasks.find(task => task.id === id);
+      if (!item || item.archived || item.completed || selectedDate !== todayISO()) return;
+      const now = new Date();
+      const currentStart = Math.floor((now.getHours() * 60 + now.getMinutes()) / 30) * 30;
+      const currentEnd = Math.min(currentStart + 30, 24 * 60);
+      const previousAppointments = appointments.slice();
+      const previousTasks = tasks.map(task => ({ ...task }));
+      appointments.push({
+        id: newId(), date: todayISO(), title: item.title,
+        startTime: minutesToTime(currentStart),
+        endTime: currentEnd >= 24 * 60 ? '24:00' : minutesToTime(currentEnd),
+        notes: item.notes || ''
+      });
+      tasks = tasks.map(task => task.id === id ? { ...task, started: true } : task);
+      if (!saveAppointments()) {
+        appointments = previousAppointments; tasks = previousTasks;
+        elements.taskEditError.textContent = 'Current timeblock could not be saved.'; return;
+      }
+      if (!saveTasks()) {
+        appointments = previousAppointments; tasks = previousTasks;
+        saveAppointments();
+        elements.taskEditError.textContent = 'Task started state could not be saved, so the timeblock was not added.'; return;
+      }
+      closeDialog(elements.taskEditDialog);
+      render(); renderCalendars(); renderTasks();
+      requestAnimationFrame(() => {
+        const target = elements.timeline.querySelector(`[data-time="${minutesToTime(currentStart)}"]`);
+        if (target) target.scrollIntoView({ block: 'center' });
+      });
     });
     elements.taskEditStarted.addEventListener('click', () => {
       const id = elements.taskEditId.value;
