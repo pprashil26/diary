@@ -915,6 +915,17 @@
       .desktop-tasks .task-quick-add { grid-template-columns: minmax(0, 1fr) 86px; gap: 5px; }
       .desktop-tasks .task-filter-bar { gap: 3px; }
     }
+
+    /* V1.51.2 Section Quick Add */
+    .task-section-capture { padding: 5px 0 4px 11px; }
+    .task-section-input {
+      width: 100%; min-height: 32px; padding: 6px 9px; border: 1px solid #b9cddd; border-radius: 8px;
+      background: #fff; color: var(--ink); font: inherit; font-size: 11px; font-weight: 720; letter-spacing: .02em;
+      text-transform: uppercase; outline: none;
+    }
+    .task-section-input:focus { border-color: #6c99ba; box-shadow: 0 0 0 2px rgba(77,126,161,.12); }
+    .task-section-input::placeholder { color: #98a5ae; font-weight: 650; }
+    .task-section-add[aria-expanded="true"] { color: #fff; background: var(--accent-deep); }
   </style>
 </head>
 <body lang="en" translate="no" class="notranslate">
@@ -943,12 +954,6 @@
       <aside id="desktopTasks" class="desktop-tasks task-panel" aria-label="Tasks">
         <div class="task-panel-head">
           <h2 class="task-panel-title">Tasks</h2>
-          <div class="task-quick-add">
-            <input id="desktopTaskInput" class="task-capture" type="text" maxlength="160" placeholder="+ Task" autocomplete="off" aria-label="Add task">
-            <select id="desktopTaskType" class="task-type-select" aria-label="New task type">
-              <option value="work">Work</option><option value="home">Home</option><option value="personal" selected>Personal</option>
-            </select>
-          </div>
           <div class="task-filter-bar" aria-label="Filter tasks by type">
             <button class="task-filter active" type="button" data-task-filter="all">All</button>
             <button class="task-filter" type="button" data-task-filter="work">Work</button>
@@ -1010,12 +1015,6 @@
       </div>
       <div id="mobileTaskPanel" class="task-panel">
         <div class="task-panel-head">
-          <div class="task-quick-add">
-            <input id="mobileTaskInput" class="task-capture" type="text" maxlength="160" placeholder="+ Task" autocomplete="off" aria-label="Add task">
-            <select id="mobileTaskType" class="task-type-select" aria-label="New task type">
-              <option value="work">Work</option><option value="home">Home</option><option value="personal" selected>Personal</option>
-            </select>
-          </div>
           <div class="task-filter-bar" aria-label="Filter tasks by type">
             <button class="task-filter active" type="button" data-task-filter="all">All</button>
             <button class="task-filter" type="button" data-task-filter="work">Work</button>
@@ -1080,7 +1079,7 @@
       <h2 id="aboutDialogTitle" class="dialog-title">Diary</h2>
       <div class="about-copy">
         <p><strong>A simple local-first appointment diary.</strong></p>
-        <p>Tap any 30-minute slot to add an appointment. Tap an appointment to edit or delete it. Use the compact Tasks panel to organise Work, Home and Personal tasks, edit titles, add optional notes and filter sections, and Calendar to jump to another date; yellow dates contain appointments. Your data stays in this browser on this device.</p>
+        <p>Tap any 30-minute slot to add an appointment. Tap an appointment to edit or delete it. Use the compact Tasks panel to organise Work, Home and Personal tasks, create tasks directly from each section, edit titles, add optional notes and filter sections, and Calendar to jump to another date; yellow dates contain appointments. Your data stays in this browser on this device.</p>
         <p id="storageStatus" class="version">Automatic backup is active.</p>
         <p class="version"><strong id="versionText"></strong><br>Build date: <span id="buildDateText"></span></p>
       </div>
@@ -1100,7 +1099,7 @@
     document.documentElement.translate = false;
     document.body.lang = 'en';
     document.body.translate = false;
-    const APP_VERSION = "V1.51.1";
+    const APP_VERSION = "V1.51.2";
     const APP_BUILD_DATE = "2026-10-23";
     const STORAGE_KEY = "diary.appointments.v1";
     const BACKUP_KEY = "diary.appointments.backup.v1";
@@ -1147,10 +1146,6 @@
       tasksButton: document.getElementById('tasksButton'),
       tasksDialog: document.getElementById('tasksDialog'),
       closeTasksButton: document.getElementById('closeTasksButton'),
-      desktopTaskInput: document.getElementById('desktopTaskInput'),
-      mobileTaskInput: document.getElementById('mobileTaskInput'),
-      desktopTaskType: document.getElementById('desktopTaskType'),
-      mobileTaskType: document.getElementById('mobileTaskType'),
       desktopTaskList: document.getElementById('desktopTaskList'),
       mobileTaskList: document.getElementById('mobileTaskList'),
       desktopArchivedLink: document.getElementById('desktopArchivedLink'),
@@ -1172,6 +1167,7 @@
     let appointments = loadAppointments();
     let tasks = loadTasks();
     let taskTypeFilter = 'all';
+    let taskQuickAdd = null;
     let armedDeleteTaskId = null;
     let armedDeleteTimer = null;
 
@@ -1311,13 +1307,26 @@
         const count = document.createElement('span'); count.className = 'task-section-count'; count.textContent = String(activeCount); count.title = 'Active tasks';
         const add = document.createElement('button'); add.type='button'; add.className='task-section-add'; add.textContent='+';
         add.dataset.addTaskType=type.id; add.setAttribute('aria-label',`Add ${type.label.toLowerCase()} task`);
+        add.setAttribute('aria-expanded', String(Boolean(taskQuickAdd && taskQuickAdd.type === type.id)));
         head.append(marker,name,count,add);
         const list = document.createElement('div'); list.className='task-section-list';
+        if (taskQuickAdd && taskQuickAdd.type === type.id) {
+          const capture = document.createElement('div'); capture.className = 'task-section-capture';
+          const input = document.createElement('input');
+          input.type = 'text'; input.maxLength = 160; input.autocomplete = 'off'; input.className = 'task-section-input';
+          input.placeholder = `+ ${type.label} TASK`; input.setAttribute('aria-label', `Add ${type.label.toLowerCase()} task`);
+          input.dataset.quickAddInput = type.id; input.value = taskQuickAdd.value || '';
+          capture.appendChild(input); list.appendChild(capture);
+        }
         if (!sectionTasks.length) { const empty=document.createElement('div'); empty.className='task-section-empty'; empty.textContent='NO TASKS'; list.appendChild(empty); }
         else sectionTasks.forEach(item=>list.appendChild(makeTaskRow(item)));
         section.append(head,list); fragment.appendChild(section);
       });
       container.replaceChildren(fragment);
+      if (taskQuickAdd && taskQuickAdd.focus) {
+        const input = container.querySelector(`[data-quick-add-input="${taskQuickAdd.type}"]`);
+        if (input) requestAnimationFrame(() => { input.focus(); input.setSelectionRange(input.value.length, input.value.length); });
+      }
     }
     function renderArchivedTasks() {
       const allArchived = archivedTasks().slice().sort((a,b)=>(b.archivedAt||'').localeCompare(a.archivedAt||''));
@@ -1346,16 +1355,13 @@
       updateArchivedLinks();
       renderArchivedTasks();
     }
-    function addTaskFromInput(input) {
-      const title = normaliseTaskTitle(input.value);
-      const typeSelect = input === elements.desktopTaskInput ? elements.desktopTaskType : elements.mobileTaskType;
-      const type = ['work', 'home', 'personal'].includes(typeSelect.value) ? typeSelect.value : 'personal';
-      input.value = '';
-      if (!title) return;
-      const previous = tasks.slice();
+    function addTask(titleValue, typeValue) {
+      const title = normaliseTaskTitle(titleValue);
+      const type = ['work', 'home', 'personal'].includes(typeValue) ? typeValue : 'personal';
+      if (!title) return false;
       tasks.push({ id: newId(), title, notes: '', type, completed: false, archived: false, archivedAt: null, createdAt: new Date().toISOString() });
-      if (!saveTasks()) { tasks = previous; alert('Task could not be saved. Browser storage may be unavailable or full.'); return; }
-      renderTasks();
+      saveTasks();
+      return true;
     }
     function openTaskEditor(id) {
       const item = tasks.find(task => task.id === id);
@@ -1815,31 +1821,48 @@
     });
     elements.closeCalendarButton.addEventListener('click', () => closeDialog(elements.calendarDialog));
     elements.calendarDialog.addEventListener('click', event => { if (event.target === elements.calendarDialog) closeDialog(elements.calendarDialog); });
-    [elements.desktopTaskInput, elements.mobileTaskInput].forEach(input => {
-      input.addEventListener('input', () => {
-        const start = input.selectionStart;
-        input.value = input.value.toUpperCase();
-        if (start !== null) input.setSelectionRange(start, start);
-      });
-      input.addEventListener('keydown', event => {
-        if (event.key === 'Enter') { event.preventDefault(); addTaskFromInput(input); }
-      });
-    });
     document.querySelectorAll('[data-task-filter]').forEach(button => button.addEventListener('click', () => {
       taskTypeFilter = button.dataset.taskFilter;
+      taskQuickAdd = null;
       renderTasks();
     }));
     function handleSectionAdd(event) {
       const add = event.target.closest('[data-add-task-type]');
       if (!add) return;
-      const desktop = event.currentTarget === elements.desktopTaskList;
-      const input = desktop ? elements.desktopTaskInput : elements.mobileTaskInput;
-      const select = desktop ? elements.desktopTaskType : elements.mobileTaskType;
-      select.value = add.dataset.addTaskType;
-      input.focus();
+      event.preventDefault();
+      taskQuickAdd = taskQuickAdd && taskQuickAdd.type === add.dataset.addTaskType
+        ? null
+        : { type: add.dataset.addTaskType, value: '', focus: true };
+      renderTasks();
+    }
+    function handleQuickAddInput(event) {
+      const input = event.target.closest('[data-quick-add-input]');
+      if (!input || !taskQuickAdd) return;
+      const start = input.selectionStart;
+      input.value = input.value.toUpperCase();
+      taskQuickAdd.value = input.value;
+      taskQuickAdd.focus = false;
+      if (start !== null) input.setSelectionRange(start, start);
+    }
+    function handleQuickAddKeydown(event) {
+      const input = event.target.closest('[data-quick-add-input]');
+      if (!input) return;
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        if (addTask(input.value, input.dataset.quickAddInput)) taskQuickAdd = null;
+        else { taskQuickAdd = { type: input.dataset.quickAddInput, value: input.value, focus: true }; renderTasks(); }
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        taskQuickAdd = null;
+        renderTasks();
+      }
     }
     elements.desktopTaskList.addEventListener('click', handleSectionAdd);
     elements.mobileTaskList.addEventListener('click', handleSectionAdd);
+    elements.desktopTaskList.addEventListener('input', handleQuickAddInput);
+    elements.mobileTaskList.addEventListener('input', handleQuickAddInput);
+    elements.desktopTaskList.addEventListener('keydown', handleQuickAddKeydown);
+    elements.mobileTaskList.addEventListener('keydown', handleQuickAddKeydown);
     elements.desktopTaskList.addEventListener('click', handleTaskListClick);
     elements.mobileTaskList.addEventListener('click', handleTaskListClick);
     elements.taskEditTitle.addEventListener('input', () => {
@@ -1872,7 +1895,6 @@
     elements.tasksButton.addEventListener('click', () => {
       renderTasks();
       elements.tasksDialog.showModal();
-      requestAnimationFrame(() => elements.mobileTaskInput.focus());
     });
     elements.closeTasksButton.addEventListener('click', () => closeDialog(elements.tasksDialog));
     elements.tasksDialog.addEventListener('click', event => { if (event.target === elements.tasksDialog) closeDialog(elements.tasksDialog); });
