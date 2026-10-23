@@ -858,6 +858,44 @@
     .archived-task-main .task-title-button { padding-top: 0; }
     #taskEditDialog { width: min(calc(100% - 22px), 440px); }
     #taskEditNotes { min-height: 110px; }
+
+    /* V1.51 Work, Home and Personal task sections */
+    .task-quick-add { display: grid; grid-template-columns: minmax(0, 1fr) 82px; gap: 5px; }
+    .task-type-select { min-height: 34px; padding: 5px 6px; border-radius: 9px; font-size: 10px; font-weight: 760; text-transform: uppercase; }
+    .task-filter-bar { display: flex; gap: 3px; margin-top: 6px; }
+    .task-filter {
+      flex: 1 1 0; min-width: 0; min-height: 24px; padding: 2px 4px; border: 1px solid transparent;
+      border-radius: 999px; color: #72808c; background: transparent; font-size: 9px; font-weight: 760;
+      letter-spacing: .04em; text-transform: uppercase; cursor: pointer;
+    }
+    .task-filter:hover, .task-filter:focus-visible { color: var(--accent-deep); background: var(--accent-soft); }
+    .task-filter.active { color: #fff; background: var(--accent-deep); }
+    .task-section { margin: 3px 0 7px; }
+    .task-section[hidden] { display: none; }
+    .task-section-head {
+      position: sticky; z-index: 1; top: -3px; display: grid; grid-template-columns: 5px minmax(0,1fr) auto auto;
+      align-items: center; gap: 6px; min-height: 30px; padding: 4px 1px 3px; border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,.97);
+    }
+    .task-section-marker { align-self: stretch; width: 4px; border-radius: 999px; background: var(--accent); }
+    .task-section[data-type="home"] .task-section-marker { background: #5f8069; }
+    .task-section[data-type="personal"] .task-section-marker { background: #b1873d; }
+    .task-section-name { color: var(--accent-deep); font-size: 10px; font-weight: 820; letter-spacing: .12em; }
+    .task-section[data-type="home"] .task-section-name { color: #466651; }
+    .task-section[data-type="personal"] .task-section-name { color: #896728; }
+    .task-section-count { min-width: 18px; color: var(--muted); text-align: right; font-size: 9px; font-weight: 760; }
+    .task-section-add { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; color: var(--muted); background: transparent; font-size: 17px; line-height: 20px; cursor: pointer; }
+    .task-section-add:hover, .task-section-add:focus-visible { color: var(--accent-deep); background: var(--accent-soft); outline: none; }
+    .task-section-list { padding: 0 0 1px; }
+    .task-section-empty { padding: 7px 4px 6px 11px; color: #9aa5ae; font-size: 9px; letter-spacing: .04em; }
+    .archived-type-heading { display:flex; align-items:center; gap:7px; min-height:30px; padding-top:9px; border-bottom:1px solid var(--line); color:var(--accent-deep); font-size:10px; font-weight:800; letter-spacing:.11em; }
+    .archived-type-heading::before { content:''; width:4px; height:18px; border-radius:99px; background:var(--accent); }
+    .archived-type-heading.home { color:#466651; }
+    .archived-type-heading.home::before { background:#5f8069; }
+    .archived-type-heading.personal { color:#896728; }
+    .archived-type-heading.personal::before { background:#b1873d; }
+    #taskEditType { text-transform: none; }
+    @media (max-width: 430px) { .task-quick-add { grid-template-columns:minmax(0,1fr) 78px; } }
   </style>
 </head>
 <body lang="en" translate="no" class="notranslate">
@@ -886,7 +924,18 @@
       <aside id="desktopTasks" class="desktop-tasks task-panel" aria-label="Tasks">
         <div class="task-panel-head">
           <h2 class="task-panel-title">Tasks</h2>
-          <input id="desktopTaskInput" class="task-capture" type="text" maxlength="160" placeholder="+ Task" autocomplete="off" aria-label="Add task">
+          <div class="task-quick-add">
+            <input id="desktopTaskInput" class="task-capture" type="text" maxlength="160" placeholder="+ Task" autocomplete="off" aria-label="Add task">
+            <select id="desktopTaskType" class="task-type-select" aria-label="New task type">
+              <option value="work">Work</option><option value="home">Home</option><option value="personal" selected>Personal</option>
+            </select>
+          </div>
+          <div class="task-filter-bar" aria-label="Filter tasks by type">
+            <button class="task-filter active" type="button" data-task-filter="all">All</button>
+            <button class="task-filter" type="button" data-task-filter="work">Work</button>
+            <button class="task-filter" type="button" data-task-filter="home">Home</button>
+            <button class="task-filter" type="button" data-task-filter="personal">Personal</button>
+          </div>
         </div>
         <div id="desktopTaskList" class="task-list" aria-live="polite"></div>
         <div class="task-panel-footer">
@@ -942,7 +991,18 @@
       </div>
       <div id="mobileTaskPanel" class="task-panel">
         <div class="task-panel-head">
-          <input id="mobileTaskInput" class="task-capture" type="text" maxlength="160" placeholder="+ Task" autocomplete="off" aria-label="Add task">
+          <div class="task-quick-add">
+            <input id="mobileTaskInput" class="task-capture" type="text" maxlength="160" placeholder="+ Task" autocomplete="off" aria-label="Add task">
+            <select id="mobileTaskType" class="task-type-select" aria-label="New task type">
+              <option value="work">Work</option><option value="home">Home</option><option value="personal" selected>Personal</option>
+            </select>
+          </div>
+          <div class="task-filter-bar" aria-label="Filter tasks by type">
+            <button class="task-filter active" type="button" data-task-filter="all">All</button>
+            <button class="task-filter" type="button" data-task-filter="work">Work</button>
+            <button class="task-filter" type="button" data-task-filter="home">Home</button>
+            <button class="task-filter" type="button" data-task-filter="personal">Personal</button>
+          </div>
         </div>
         <div id="mobileTaskList" class="task-list" aria-live="polite"></div>
         <div class="task-panel-footer">
@@ -964,6 +1024,10 @@
     <form id="taskEditForm" class="dialog-inner" novalidate>
       <h2 id="taskEditDialogTitle" class="dialog-title">Edit task</h2>
       <input id="taskEditId" type="hidden">
+      <label class="field">
+        <span class="field-label">Type</span>
+        <select id="taskEditType" required><option value="work">Work</option><option value="home">Home</option><option value="personal">Personal</option></select>
+      </label>
       <label class="field">
         <span class="field-label">Title</span>
         <input id="taskEditTitle" type="text" maxlength="160" autocomplete="off" required>
@@ -997,7 +1061,7 @@
       <h2 id="aboutDialogTitle" class="dialog-title">Diary</h2>
       <div class="about-copy">
         <p><strong>A simple local-first appointment diary.</strong></p>
-        <p>Tap any 30-minute slot to add an appointment. Tap an appointment to edit or delete it. Use the compact Tasks panel to capture, edit and add optional notes to tasks, and Calendar to jump to another date; yellow dates contain appointments. Your data stays in this browser on this device.</p>
+        <p>Tap any 30-minute slot to add an appointment. Tap an appointment to edit or delete it. Use the compact Tasks panel to organise Work, Home and Personal tasks, edit titles, add optional notes and filter sections, and Calendar to jump to another date; yellow dates contain appointments. Your data stays in this browser on this device.</p>
         <p id="storageStatus" class="version">Automatic backup is active.</p>
         <p class="version"><strong id="versionText"></strong><br>Build date: <span id="buildDateText"></span></p>
       </div>
@@ -1017,7 +1081,7 @@
     document.documentElement.translate = false;
     document.body.lang = 'en';
     document.body.translate = false;
-    const APP_VERSION = "V1.50.2";
+    const APP_VERSION = "V1.51";
     const APP_BUILD_DATE = "2026-10-23";
     const STORAGE_KEY = "diary.appointments.v1";
     const BACKUP_KEY = "diary.appointments.backup.v1";
@@ -1066,6 +1130,8 @@
       closeTasksButton: document.getElementById('closeTasksButton'),
       desktopTaskInput: document.getElementById('desktopTaskInput'),
       mobileTaskInput: document.getElementById('mobileTaskInput'),
+      desktopTaskType: document.getElementById('desktopTaskType'),
+      mobileTaskType: document.getElementById('mobileTaskType'),
       desktopTaskList: document.getElementById('desktopTaskList'),
       mobileTaskList: document.getElementById('mobileTaskList'),
       desktopArchivedLink: document.getElementById('desktopArchivedLink'),
@@ -1077,6 +1143,7 @@
       taskEditForm: document.getElementById('taskEditForm'),
       taskEditId: document.getElementById('taskEditId'),
       taskEditTitle: document.getElementById('taskEditTitle'),
+      taskEditType: document.getElementById('taskEditType'),
       taskEditNotes: document.getElementById('taskEditNotes'),
       taskEditError: document.getElementById('taskEditError'),
       taskEditCancel: document.getElementById('taskEditCancel')
@@ -1085,6 +1152,7 @@
     let selectedDate = todayISO();
     let appointments = loadAppointments();
     let tasks = loadTasks();
+    let taskTypeFilter = 'all';
     let armedDeleteTaskId = null;
     let armedDeleteTimer = null;
 
@@ -1130,6 +1198,7 @@
       return item && typeof item.id === 'string' && typeof item.title === 'string' &&
         typeof item.completed === 'boolean' && typeof item.createdAt === 'string' &&
         (item.notes === undefined || typeof item.notes === 'string') &&
+        (item.type === undefined || ['work', 'home', 'personal'].includes(item.type)) &&
         (item.archived === undefined || typeof item.archived === 'boolean') &&
         (item.archivedAt === undefined || item.archivedAt === null || typeof item.archivedAt === 'string');
     }
@@ -1142,6 +1211,7 @@
           ...item,
           title: normaliseTaskTitle(item.title),
           notes: typeof item.notes === 'string' ? item.notes.slice(0, 1000) : '',
+          type: ['work', 'home', 'personal'].includes(item.type) ? item.type : 'personal',
           archived: item.archived === true,
           archivedAt: item.archived === true && typeof item.archivedAt === 'string' ? item.archivedAt : null
         })).filter(item => item.title);
@@ -1183,97 +1253,75 @@
         link.classList.toggle('visible', count > 0);
       });
     }
+    const TASK_TYPES = [
+      { id: 'work', label: 'WORK' }, { id: 'home', label: 'HOME' }, { id: 'personal', label: 'PERSONAL' }
+    ];
+    function makeTaskRow(item) {
+      const row = document.createElement('div');
+      row.className = `task-row${item.completed ? ' completed' : ''}`;
+      row.dataset.id = item.id;
+      const toggle = document.createElement('button');
+      toggle.type = 'button'; toggle.className = 'task-toggle'; toggle.textContent = item.completed ? '✓' : '○';
+      toggle.setAttribute('aria-label', `${item.completed ? 'Mark active' : 'Complete'} ${item.title}`);
+      const title = document.createElement('button');
+      title.type = 'button'; title.className = 'task-title-button'; title.textContent = item.title;
+      title.setAttribute('aria-label', `Edit ${item.title}`);
+      const note = document.createElement('button');
+      note.type = 'button'; note.className = 'task-note-indicator'; note.textContent = item.notes ? '▪' : ''; note.hidden = !item.notes;
+      note.title = 'Task has notes'; note.setAttribute('aria-label', `Edit notes for ${item.title}`);
+      const archive = document.createElement('button');
+      archive.type = 'button'; archive.className = 'task-archive'; archive.textContent = ''; archive.title = 'Archive task';
+      archive.setAttribute('aria-label', `Archive ${item.title}`);
+      row.append(toggle, title, note, archive);
+      return row;
+    }
     function renderTaskList(container) {
       if (!container) return;
-      const sorted = activeTasks().slice().sort((a, b) => Number(a.completed) - Number(b.completed) || a.createdAt.localeCompare(b.createdAt));
-      if (!sorted.length) {
-        const empty = document.createElement('div');
-        empty.className = 'task-empty';
-        empty.textContent = 'NO ACTIVE TASKS';
-        container.replaceChildren(empty);
-        return;
-      }
+      const allActive = activeTasks();
       const fragment = document.createDocumentFragment();
-      sorted.forEach(item => {
-        const row = document.createElement('div');
-        row.className = `task-row${item.completed ? ' completed' : ''}`;
-        row.dataset.id = item.id;
-        const toggle = document.createElement('button');
-        toggle.type = 'button';
-        toggle.className = 'task-toggle';
-        toggle.textContent = item.completed ? '✓' : '○';
-        toggle.setAttribute('aria-label', `${item.completed ? 'Mark active' : 'Complete'} ${item.title}`);
-        const title = document.createElement('button');
-        title.type = 'button';
-        title.className = 'task-title-button';
-        title.textContent = item.title;
-        title.setAttribute('aria-label', `Edit ${item.title}`);
-        const note = document.createElement('button');
-        note.type = 'button';
-        note.className = 'task-note-indicator';
-        note.textContent = item.notes ? '▪' : '';
-        note.hidden = !item.notes;
-        note.title = 'Task has notes';
-        note.setAttribute('aria-label', `Edit notes for ${item.title}`);
-        const archive = document.createElement('button');
-        archive.type = 'button';
-        archive.className = 'task-archive';
-        archive.textContent = '';
-        archive.title = 'Archive task';
-        archive.setAttribute('aria-label', `Archive ${item.title}`);
-        row.append(toggle, title, note, archive);
-        fragment.appendChild(row);
+      TASK_TYPES.forEach(type => {
+        if (taskTypeFilter !== 'all' && taskTypeFilter !== type.id) return;
+        const section = document.createElement('section');
+        section.className = 'task-section'; section.dataset.type = type.id;
+        const sectionTasks = allActive.filter(item => item.type === type.id)
+          .sort((a,b) => Number(a.completed)-Number(b.completed) || a.createdAt.localeCompare(b.createdAt));
+        const activeCount = sectionTasks.filter(item => !item.completed).length;
+        const head = document.createElement('div'); head.className = 'task-section-head';
+        const marker = document.createElement('span'); marker.className = 'task-section-marker'; marker.setAttribute('aria-hidden','true');
+        const name = document.createElement('span'); name.className = 'task-section-name'; name.textContent = type.label;
+        const count = document.createElement('span'); count.className = 'task-section-count'; count.textContent = String(activeCount); count.title = 'Active tasks';
+        const add = document.createElement('button'); add.type='button'; add.className='task-section-add'; add.textContent='+';
+        add.dataset.addTaskType=type.id; add.setAttribute('aria-label',`Add ${type.label.toLowerCase()} task`);
+        head.append(marker,name,count,add);
+        const list = document.createElement('div'); list.className='task-section-list';
+        if (!sectionTasks.length) { const empty=document.createElement('div'); empty.className='task-section-empty'; empty.textContent='NO TASKS'; list.appendChild(empty); }
+        else sectionTasks.forEach(item=>list.appendChild(makeTaskRow(item)));
+        section.append(head,list); fragment.appendChild(section);
       });
       container.replaceChildren(fragment);
     }
     function renderArchivedTasks() {
-      const sorted = archivedTasks().slice().sort((a, b) => (b.archivedAt || '').localeCompare(a.archivedAt || ''));
-      if (!sorted.length) {
-        const empty = document.createElement('div');
-        empty.className = 'task-empty';
-        empty.textContent = 'NO ARCHIVED TASKS';
-        elements.archivedTasksList.replaceChildren(empty);
-        return;
-      }
-      const fragment = document.createDocumentFragment();
-      sorted.forEach(item => {
-        const row = document.createElement('div');
-        row.className = 'archived-task-row';
-        row.dataset.id = item.id;
-        const main = document.createElement('div');
-        main.className = 'archived-task-main';
-        const title = document.createElement('button');
-        title.type = 'button';
-        title.className = 'task-title-button';
-        title.textContent = item.title;
-        title.setAttribute('aria-label', `Edit ${item.title}`);
-        const note = document.createElement('button');
-        note.type = 'button';
-        note.className = 'task-note-indicator';
-        note.textContent = item.notes ? '▪' : '';
-        note.hidden = !item.notes;
-        note.title = 'Task has notes';
-        note.setAttribute('aria-label', `Edit notes for ${item.title}`);
-        main.append(title, note);
-        const actions = document.createElement('div');
-        actions.className = 'archived-task-actions';
-        const restore = document.createElement('button');
-        restore.type = 'button';
-        restore.className = 'task-restore';
-        restore.textContent = 'Restore';
-        restore.setAttribute('aria-label', `Restore ${item.title}`);
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.className = `task-permanent-delete${armedDeleteTaskId === item.id ? ' armed' : ''}`;
-        remove.textContent = armedDeleteTaskId === item.id ? 'Delete permanently?' : 'Delete';
-        remove.setAttribute('aria-label', armedDeleteTaskId === item.id ? `Confirm permanent deletion of ${item.title}` : `Delete ${item.title} permanently`);
-        actions.append(restore, remove);
-        row.append(main, actions);
-        fragment.appendChild(row);
+      const allArchived = archivedTasks().slice().sort((a,b)=>(b.archivedAt||'').localeCompare(a.archivedAt||''));
+      if (!allArchived.length) { const empty=document.createElement('div'); empty.className='task-empty'; empty.textContent='NO ARCHIVED TASKS'; elements.archivedTasksList.replaceChildren(empty); return; }
+      const fragment=document.createDocumentFragment();
+      TASK_TYPES.forEach(type=>{
+        const group=allArchived.filter(item=>item.type===type.id); if(!group.length)return;
+        const heading=document.createElement('div'); heading.className=`archived-type-heading ${type.id}`; heading.textContent=type.label; fragment.appendChild(heading);
+        group.forEach(item=>{
+          const row=document.createElement('div'); row.className='archived-task-row'; row.dataset.id=item.id;
+          const main=document.createElement('div'); main.className='archived-task-main';
+          const title=document.createElement('button'); title.type='button'; title.className='task-title-button'; title.textContent=item.title; title.setAttribute('aria-label',`Edit ${item.title}`);
+          const note=document.createElement('button'); note.type='button'; note.className='task-note-indicator'; note.textContent=item.notes?'▪':''; note.hidden=!item.notes; note.title='Task has notes'; note.setAttribute('aria-label',`Edit notes for ${item.title}`); main.append(title,note);
+          const actions=document.createElement('div'); actions.className='archived-task-actions';
+          const restore=document.createElement('button'); restore.type='button'; restore.className='task-restore'; restore.textContent='Restore'; restore.setAttribute('aria-label',`Restore ${item.title}`);
+          const remove=document.createElement('button'); remove.type='button'; remove.className=`task-permanent-delete${armedDeleteTaskId===item.id?' armed':''}`; remove.textContent=armedDeleteTaskId===item.id?'Delete permanently?':'Delete'; remove.setAttribute('aria-label',armedDeleteTaskId===item.id?`Confirm permanent deletion of ${item.title}`:`Delete ${item.title} permanently`);
+          actions.append(restore,remove); row.append(main,actions); fragment.appendChild(row);
+        });
       });
       elements.archivedTasksList.replaceChildren(fragment);
     }
     function renderTasks() {
+      document.querySelectorAll('[data-task-filter]').forEach(button => button.classList.toggle('active', button.dataset.taskFilter === taskTypeFilter));
       renderTaskList(elements.desktopTaskList);
       renderTaskList(elements.mobileTaskList);
       updateArchivedLinks();
@@ -1281,10 +1329,12 @@
     }
     function addTaskFromInput(input) {
       const title = normaliseTaskTitle(input.value);
+      const typeSelect = input === elements.desktopTaskInput ? elements.desktopTaskType : elements.mobileTaskType;
+      const type = ['work', 'home', 'personal'].includes(typeSelect.value) ? typeSelect.value : 'personal';
       input.value = '';
       if (!title) return;
       const previous = tasks.slice();
-      tasks.push({ id: newId(), title, notes: '', completed: false, archived: false, archivedAt: null, createdAt: new Date().toISOString() });
+      tasks.push({ id: newId(), title, notes: '', type, completed: false, archived: false, archivedAt: null, createdAt: new Date().toISOString() });
       if (!saveTasks()) { tasks = previous; alert('Task could not be saved. Browser storage may be unavailable or full.'); return; }
       renderTasks();
     }
@@ -1293,6 +1343,7 @@
       if (!item) return;
       elements.taskEditId.value = item.id;
       elements.taskEditTitle.value = item.title;
+      elements.taskEditType.value = item.type || 'personal';
       elements.taskEditNotes.value = item.notes || '';
       elements.taskEditError.textContent = '';
       elements.taskEditDialog.showModal();
@@ -1432,6 +1483,7 @@
         ...item,
         title: normaliseTaskTitle(item.title),
         notes: typeof item.notes === 'string' ? item.notes.slice(0, 1000) : '',
+        type: ['work', 'home', 'personal'].includes(item.type) ? item.type : 'personal',
         archived: item.archived === true,
         archivedAt: item.archived === true && typeof item.archivedAt === 'string' ? item.archivedAt : null
       })).filter(item => item.title);
@@ -1754,6 +1806,21 @@
         if (event.key === 'Enter') { event.preventDefault(); addTaskFromInput(input); }
       });
     });
+    document.querySelectorAll('[data-task-filter]').forEach(button => button.addEventListener('click', () => {
+      taskTypeFilter = button.dataset.taskFilter;
+      renderTasks();
+    }));
+    function handleSectionAdd(event) {
+      const add = event.target.closest('[data-add-task-type]');
+      if (!add) return;
+      const desktop = event.currentTarget === elements.desktopTaskList;
+      const input = desktop ? elements.desktopTaskInput : elements.mobileTaskInput;
+      const select = desktop ? elements.desktopTaskType : elements.mobileTaskType;
+      select.value = add.dataset.addTaskType;
+      input.focus();
+    }
+    elements.desktopTaskList.addEventListener('click', handleSectionAdd);
+    elements.mobileTaskList.addEventListener('click', handleSectionAdd);
     elements.desktopTaskList.addEventListener('click', handleTaskListClick);
     elements.mobileTaskList.addEventListener('click', handleTaskListClick);
     elements.taskEditTitle.addEventListener('input', () => {
@@ -1765,10 +1832,11 @@
       event.preventDefault();
       const id = elements.taskEditId.value;
       const title = normaliseTaskTitle(elements.taskEditTitle.value);
+      const type = ['work', 'home', 'personal'].includes(elements.taskEditType.value) ? elements.taskEditType.value : 'personal';
       const notes = elements.taskEditNotes.value.trim().slice(0, 1000);
       if (!title) { elements.taskEditError.textContent = 'Please enter a title.'; return; }
       const previous = tasks.map(item => ({ ...item }));
-      tasks = tasks.map(item => item.id === id ? { ...item, title, notes } : item);
+      tasks = tasks.map(item => item.id === id ? { ...item, title, notes, type } : item);
       if (!saveTasks()) { tasks = previous; elements.taskEditError.textContent = 'Task could not be saved. Browser storage may be unavailable or full.'; return; }
       closeDialog(elements.taskEditDialog);
       renderTasks();
