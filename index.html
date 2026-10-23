@@ -926,6 +926,21 @@
     .task-section-input:focus { border-color: #6c99ba; box-shadow: 0 0 0 2px rgba(77,126,161,.12); }
     .task-section-input::placeholder { color: #98a5ae; font-weight: 650; }
     .task-section-add[aria-expanded="true"] { color: #fff; background: var(--accent-deep); }
+
+    /* V1.51.3 Task interaction polish */
+    .task-row { grid-template-columns: 20px minmax(0, 1fr) 16px; }
+    .desktop-tasks .task-row { grid-template-columns: 20px minmax(0, 1fr) 16px; }
+    .task-section-capture { padding: 6px 0 6px 11px; }
+    .task-section-capture-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+    .task-section-input { min-height: 34px; }
+    .task-section-submit { min-height: 34px; padding: 6px 10px; border: 0; border-radius: 8px; color: #fff; background: var(--accent-deep); font-size: 10px; font-weight: 800; letter-spacing: .05em; cursor: pointer; }
+    .task-section-submit:hover, .task-section-submit:focus-visible { background: #0b2138; outline: 2px solid #5d8db5; outline-offset: 2px; }
+    .task-section-hint { margin-top: 4px; color: #84919c; font-size: 8px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    .task-edit-danger-zone { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 13px; padding-top: 12px; border-top: 1px solid var(--line); }
+    .task-edit-archive-btn { min-height: 38px; padding: 8px 12px; border: 1px solid #cad7e1; border-radius: 10px; color: var(--accent-deep); background: var(--accent-soft); font-weight: 760; cursor: pointer; }
+    #taskDeleteConfirmDialog { width: min(calc(100% - 22px), 420px); }
+    .confirm-copy { margin: -2px 0 14px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+    .confirm-task-title { display: block; margin-top: 8px; color: var(--text); font-weight: 760; overflow-wrap: anywhere; }
   </style>
 </head>
 <body lang="en" translate="no" class="notranslate">
@@ -1055,12 +1070,27 @@
         <textarea id="taskEditNotes" maxlength="1000"></textarea>
       </label>
       <div id="taskEditError" class="error" role="alert"></div>
+      <div class="task-edit-danger-zone">
+        <button id="taskEditArchive" class="task-edit-archive-btn" type="button">Archive task</button>
+        <button id="taskEditDelete" class="danger-btn" type="button">Delete task</button>
+      </div>
       <div class="dialog-actions">
         <span class="spacer"></span>
         <button id="taskEditCancel" class="text-btn" type="button">Cancel</button>
         <button class="primary-btn" type="submit">Save</button>
       </div>
     </form>
+  </dialog>
+  <dialog id="taskDeleteConfirmDialog" aria-labelledby="taskDeleteConfirmTitle">
+    <div class="dialog-inner">
+      <h2 id="taskDeleteConfirmTitle" class="dialog-title">Delete task?</h2>
+      <p class="confirm-copy">Permanently delete this task? This action cannot be undone.<strong id="taskDeleteConfirmName" class="confirm-task-title"></strong></p>
+      <div class="dialog-actions">
+        <span class="spacer"></span>
+        <button id="taskDeleteConfirmCancel" class="text-btn" type="button">Cancel</button>
+        <button id="taskDeleteConfirmAction" class="danger-btn" type="button">Delete permanently</button>
+      </div>
+    </div>
   </dialog>
   <dialog id="calendarDialog" aria-labelledby="calendarDialogTitle">
     <div class="calendar-dialog-inner">
@@ -1079,7 +1109,7 @@
       <h2 id="aboutDialogTitle" class="dialog-title">Diary</h2>
       <div class="about-copy">
         <p><strong>A simple local-first appointment diary.</strong></p>
-        <p>Tap any 30-minute slot to add an appointment. Tap an appointment to edit or delete it. Use the compact Tasks panel to organise Work, Home and Personal tasks, create tasks directly from each section, edit titles, add optional notes and filter sections, and Calendar to jump to another date; yellow dates contain appointments. Your data stays in this browser on this device.</p>
+        <p>Tap any 30-minute slot to add an appointment. Tap an appointment to edit or delete it. Use the compact Tasks panel to organise Work, Home and Personal tasks, create tasks directly from each section, edit titles, add optional notes, archive, restore or safely delete tasks, and filter sections, and Calendar to jump to another date; yellow dates contain appointments. Your data stays in this browser on this device.</p>
         <p id="storageStatus" class="version">Automatic backup is active.</p>
         <p class="version"><strong id="versionText"></strong><br>Build date: <span id="buildDateText"></span></p>
       </div>
@@ -1099,7 +1129,7 @@
     document.documentElement.translate = false;
     document.body.lang = 'en';
     document.body.translate = false;
-    const APP_VERSION = "V1.51.2";
+    const APP_VERSION = "V1.51.3";
     const APP_BUILD_DATE = "2026-10-23";
     const STORAGE_KEY = "diary.appointments.v1";
     const BACKUP_KEY = "diary.appointments.backup.v1";
@@ -1160,7 +1190,13 @@
       taskEditType: document.getElementById('taskEditType'),
       taskEditNotes: document.getElementById('taskEditNotes'),
       taskEditError: document.getElementById('taskEditError'),
-      taskEditCancel: document.getElementById('taskEditCancel')
+      taskEditCancel: document.getElementById('taskEditCancel'),
+      taskEditArchive: document.getElementById('taskEditArchive'),
+      taskEditDelete: document.getElementById('taskEditDelete'),
+      taskDeleteConfirmDialog: document.getElementById('taskDeleteConfirmDialog'),
+      taskDeleteConfirmName: document.getElementById('taskDeleteConfirmName'),
+      taskDeleteConfirmCancel: document.getElementById('taskDeleteConfirmCancel'),
+      taskDeleteConfirmAction: document.getElementById('taskDeleteConfirmAction')
     };
 
     let selectedDate = todayISO();
@@ -1168,8 +1204,7 @@
     let tasks = loadTasks();
     let taskTypeFilter = 'all';
     let taskQuickAdd = null;
-    let armedDeleteTaskId = null;
-    let armedDeleteTimer = null;
+    let pendingDeleteTaskId = null;
 
     function pad(number) { return String(number).padStart(2, '0'); }
     function todayISO() {
@@ -1284,10 +1319,7 @@
       const note = document.createElement('button');
       note.type = 'button'; note.className = 'task-note-indicator'; note.textContent = item.notes ? '▪' : ''; note.hidden = !item.notes;
       note.title = 'Task has notes'; note.setAttribute('aria-label', `Edit notes for ${item.title}`);
-      const archive = document.createElement('button');
-      archive.type = 'button'; archive.className = 'task-archive'; archive.textContent = ''; archive.title = 'Archive task';
-      archive.setAttribute('aria-label', `Archive ${item.title}`);
-      row.append(toggle, title, note, archive);
+      row.append(toggle, title, note);
       return row;
     }
     function renderTaskList(container) {
@@ -1316,7 +1348,11 @@
           input.type = 'text'; input.maxLength = 160; input.autocomplete = 'off'; input.className = 'task-section-input';
           input.placeholder = `+ ${type.label} TASK`; input.setAttribute('aria-label', `Add ${type.label.toLowerCase()} task`);
           input.dataset.quickAddInput = type.id; input.value = taskQuickAdd.value || '';
-          capture.appendChild(input); list.appendChild(capture);
+          const captureRow = document.createElement('div'); captureRow.className = 'task-section-capture-row';
+          const submit = document.createElement('button'); submit.type = 'button'; submit.className = 'task-section-submit'; submit.textContent = 'ADD';
+          submit.dataset.quickAddSubmit = type.id; submit.setAttribute('aria-label', `Add ${type.label.toLowerCase()} task`);
+          const hint = document.createElement('div'); hint.className = 'task-section-hint'; hint.textContent = 'ENTER TO ADD · ESC TO CANCEL';
+          captureRow.append(input, submit); capture.append(captureRow, hint); list.appendChild(capture);
         }
         if (!sectionTasks.length) { const empty=document.createElement('div'); empty.className='task-section-empty'; empty.textContent='NO TASKS'; list.appendChild(empty); }
         else sectionTasks.forEach(item=>list.appendChild(makeTaskRow(item)));
@@ -1340,10 +1376,7 @@
           const main=document.createElement('div'); main.className='archived-task-main';
           const title=document.createElement('button'); title.type='button'; title.className='task-title-button'; title.textContent=item.title; title.setAttribute('aria-label',`Edit ${item.title}`);
           const note=document.createElement('button'); note.type='button'; note.className='task-note-indicator'; note.textContent=item.notes?'▪':''; note.hidden=!item.notes; note.title='Task has notes'; note.setAttribute('aria-label',`Edit notes for ${item.title}`); main.append(title,note);
-          const actions=document.createElement('div'); actions.className='archived-task-actions';
-          const restore=document.createElement('button'); restore.type='button'; restore.className='task-restore'; restore.textContent='Restore'; restore.setAttribute('aria-label',`Restore ${item.title}`);
-          const remove=document.createElement('button'); remove.type='button'; remove.className=`task-permanent-delete${armedDeleteTaskId===item.id?' armed':''}`; remove.textContent=armedDeleteTaskId===item.id?'Delete permanently?':'Delete'; remove.setAttribute('aria-label',armedDeleteTaskId===item.id?`Confirm permanent deletion of ${item.title}`:`Delete ${item.title} permanently`);
-          actions.append(restore,remove); row.append(main,actions); fragment.appendChild(row);
+          row.append(main); fragment.appendChild(row);
         });
       });
       elements.archivedTasksList.replaceChildren(fragment);
@@ -1359,8 +1392,9 @@
       const title = normaliseTaskTitle(titleValue);
       const type = ['work', 'home', 'personal'].includes(typeValue) ? typeValue : 'personal';
       if (!title) return false;
+      const previous = tasks.map(item => ({ ...item }));
       tasks.push({ id: newId(), title, notes: '', type, completed: false, archived: false, archivedAt: null, createdAt: new Date().toISOString() });
-      saveTasks();
+      if (!saveTasks()) { tasks = previous; return false; }
       return true;
     }
     function openTaskEditor(id) {
@@ -1371,6 +1405,7 @@
       elements.taskEditType.value = item.type || 'personal';
       elements.taskEditNotes.value = item.notes || '';
       elements.taskEditError.textContent = '';
+      elements.taskEditArchive.textContent = item.archived ? 'Restore task' : 'Archive task';
       elements.taskEditDialog.showModal();
       requestAnimationFrame(() => elements.taskEditTitle.focus());
     }
@@ -1381,58 +1416,38 @@
       const previous = tasks.map(item => ({ ...item }));
       if (event.target.closest('.task-toggle')) {
         tasks = tasks.map(item => item.id === row.dataset.id ? { ...item, completed: !item.completed } : item);
-      } else if (event.target.closest('.task-archive')) {
-        tasks = tasks.map(item => item.id === row.dataset.id ? { ...item, archived: true, archivedAt: new Date().toISOString() } : item);
       } else return;
       if (!saveTasks()) { tasks = previous; alert('Task change could not be saved.'); return; }
       renderTasks();
     }
-    function clearArmedDelete(render = true) {
-      if (armedDeleteTimer) clearTimeout(armedDeleteTimer);
-      armedDeleteTimer = null;
-      armedDeleteTaskId = null;
-      if (render) renderArchivedTasks();
+    function openDeleteTaskConfirmation(id) {
+      const item = tasks.find(task => task.id === id);
+      if (!item) return;
+      pendingDeleteTaskId = id;
+      elements.taskDeleteConfirmName.textContent = item.title;
+      elements.taskDeleteConfirmDialog.showModal();
+      requestAnimationFrame(() => elements.taskDeleteConfirmCancel.focus());
     }
-    function armPermanentDelete(id) {
-      if (armedDeleteTimer) clearTimeout(armedDeleteTimer);
-      armedDeleteTaskId = id;
-      renderArchivedTasks();
-      armedDeleteTimer = setTimeout(() => clearArmedDelete(true), 5000);
+    function closeDeleteTaskConfirmation() {
+      pendingDeleteTaskId = null;
+      closeDialog(elements.taskDeleteConfirmDialog);
     }
     function permanentlyDeleteTask(id) {
       const previous = tasks.map(item => ({ ...item }));
       tasks = tasks.filter(item => item.id !== id);
-      if (!saveTasks()) {
-        tasks = previous;
-        alert('Task could not be permanently deleted.');
-        clearArmedDelete(false);
-        renderTasks();
-        return;
-      }
-      clearArmedDelete(false);
+      if (!saveTasks()) { tasks = previous; alert('Task could not be permanently deleted.'); return false; }
+      closeDialog(elements.taskEditDialog);
+      closeDeleteTaskConfirmation();
       renderTasks();
       if (!archivedTasks().length) closeDialog(elements.archivedTasksDialog);
+      return true;
     }
     function handleArchivedTaskClick(event) {
       const row = event.target.closest('.archived-task-row');
       if (!row) return;
-      if (event.target.closest('.task-title-button, .task-note-indicator')) { openTaskEditor(row.dataset.id); return; }
-      if (event.target.closest('.task-restore')) {
-        const previous = tasks.map(item => ({ ...item }));
-        tasks = tasks.map(item => item.id === row.dataset.id ? { ...item, completed: false, archived: false, archivedAt: null } : item);
-        if (!saveTasks()) { tasks = previous; alert('Task could not be restored.'); return; }
-        clearArmedDelete(false);
-        renderTasks();
-        if (!archivedTasks().length) closeDialog(elements.archivedTasksDialog);
-        return;
-      }
-      if (event.target.closest('.task-permanent-delete')) {
-        if (armedDeleteTaskId === row.dataset.id) permanentlyDeleteTask(row.dataset.id);
-        else armPermanentDelete(row.dataset.id);
-      }
+      if (event.target.closest('.task-title-button, .task-note-indicator')) openTaskEditor(row.dataset.id);
     }
     function openArchivedTasks() {
-      clearArmedDelete(false);
       renderArchivedTasks();
       elements.archivedTasksDialog.showModal();
     }
@@ -1844,21 +1859,41 @@
       taskQuickAdd.focus = false;
       if (start !== null) input.setSelectionRange(start, start);
     }
+    function submitQuickAdd(input) {
+      const type = input.dataset.quickAddInput;
+      const value = input.value;
+      if (!normaliseTaskTitle(value)) {
+        taskQuickAdd = { type, value, focus: true };
+        renderTasks();
+        return;
+      }
+      taskQuickAdd = null;
+      if (!addTask(value, type)) {
+        taskQuickAdd = { type, value, focus: true };
+        renderTasks();
+        alert('Task could not be saved. Browser storage may be unavailable or full.');
+        return;
+      }
+      renderTasks();
+    }
     function handleQuickAddKeydown(event) {
       const input = event.target.closest('[data-quick-add-input]');
       if (!input) return;
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        if (addTask(input.value, input.dataset.quickAddInput)) taskQuickAdd = null;
-        else { taskQuickAdd = { type: input.dataset.quickAddInput, value: input.value, focus: true }; renderTasks(); }
-      } else if (event.key === 'Escape') {
-        event.preventDefault();
-        taskQuickAdd = null;
-        renderTasks();
-      }
+      if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); submitQuickAdd(input); }
+      else if (event.key === 'Escape') { event.preventDefault(); taskQuickAdd = null; renderTasks(); }
+    }
+    function handleQuickAddSubmit(event) {
+      const submit = event.target.closest('[data-quick-add-submit]');
+      if (!submit) return;
+      event.preventDefault(); event.stopPropagation();
+      const list = event.currentTarget;
+      const input = list.querySelector(`[data-quick-add-input="${submit.dataset.quickAddSubmit}"]`);
+      if (input) submitQuickAdd(input);
     }
     elements.desktopTaskList.addEventListener('click', handleSectionAdd);
     elements.mobileTaskList.addEventListener('click', handleSectionAdd);
+    elements.desktopTaskList.addEventListener('click', handleQuickAddSubmit);
+    elements.mobileTaskList.addEventListener('click', handleQuickAddSubmit);
     elements.desktopTaskList.addEventListener('input', handleQuickAddInput);
     elements.mobileTaskList.addEventListener('input', handleQuickAddInput);
     elements.desktopTaskList.addEventListener('keydown', handleQuickAddKeydown);
@@ -1883,14 +1918,30 @@
       closeDialog(elements.taskEditDialog);
       renderTasks();
     });
+    elements.taskEditArchive.addEventListener('click', () => {
+      const id = elements.taskEditId.value;
+      const item = tasks.find(task => task.id === id);
+      if (!item) return;
+      const previous = tasks.map(task => ({ ...task }));
+      tasks = tasks.map(task => task.id === id ? { ...task, archived: !item.archived, archivedAt: item.archived ? null : new Date().toISOString(), completed: item.archived ? false : task.completed } : task);
+      if (!saveTasks()) { tasks = previous; elements.taskEditError.textContent = item.archived ? 'Task could not be restored.' : 'Task could not be archived.'; return; }
+      closeDialog(elements.taskEditDialog);
+      renderTasks();
+      if (!archivedTasks().length) closeDialog(elements.archivedTasksDialog);
+    });
+    elements.taskEditDelete.addEventListener('click', () => openDeleteTaskConfirmation(elements.taskEditId.value));
+    elements.taskDeleteConfirmCancel.addEventListener('click', closeDeleteTaskConfirmation);
+    elements.taskDeleteConfirmAction.addEventListener('click', () => { if (pendingDeleteTaskId) permanentlyDeleteTask(pendingDeleteTaskId); });
+    elements.taskDeleteConfirmDialog.addEventListener('click', event => { if (event.target === elements.taskDeleteConfirmDialog) closeDeleteTaskConfirmation(); });
+    elements.taskDeleteConfirmDialog.addEventListener('cancel', event => { event.preventDefault(); closeDeleteTaskConfirmation(); });
     elements.taskEditCancel.addEventListener('click', () => closeDialog(elements.taskEditDialog));
     elements.taskEditDialog.addEventListener('click', event => { if (event.target === elements.taskEditDialog) closeDialog(elements.taskEditDialog); });
     elements.archivedTasksList.addEventListener('click', handleArchivedTaskClick);
     elements.desktopArchivedLink.addEventListener('click', openArchivedTasks);
     elements.mobileArchivedLink.addEventListener('click', openArchivedTasks);
-    elements.closeArchivedTasksButton.addEventListener('click', () => { clearArmedDelete(false); closeDialog(elements.archivedTasksDialog); });
+    elements.closeArchivedTasksButton.addEventListener('click', () => closeDialog(elements.archivedTasksDialog));
     elements.archivedTasksDialog.addEventListener('click', event => {
-      if (event.target === elements.archivedTasksDialog) { clearArmedDelete(false); closeDialog(elements.archivedTasksDialog); }
+      if (event.target === elements.archivedTasksDialog) closeDialog(elements.archivedTasksDialog);
     });
     elements.tasksButton.addEventListener('click', () => {
       renderTasks();
